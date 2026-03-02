@@ -129,7 +129,6 @@ DCMI_Capture_Start();
     if (flag_half_ready)
     {
         flag_half_ready = 0;
-        
         // 把前 10 行的数据发给屏幕的 current_y 位置
         ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[0]);
         
@@ -141,7 +140,6 @@ DCMI_Capture_Start();
     if (flag_full_ready)
     {
         flag_full_ready = 0;
-        
         // 把后 10 行的数据发给屏幕的 current_y 位置
         // 注意数据指针的起点偏移到了数组的后一半！
         ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[LINE_BUFFER_SIZE / 2]);
