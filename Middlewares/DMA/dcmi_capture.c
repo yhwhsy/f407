@@ -7,6 +7,9 @@ uint8_t g_line_buf[LINE_BUFFER_SIZE];
 volatile uint8_t flag_half_ready = 0;
 volatile uint8_t flag_full_ready = 0;
 
+/* DCMI DMA 句柄 - 供 main.c 使用 */
+DMA_HandleTypeDef hdma_dcmi;
+
 static DCMI_HandleTypeDef *g_hdcmi = NULL;
 static DMA_HandleTypeDef  *g_hdma  = NULL;
 

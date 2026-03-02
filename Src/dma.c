@@ -25,8 +25,6 @@
 
 /* USER CODE END 0 */
 
-DMA_HandleTypeDef hdma_dcmi;
-
 /*----------------------------------------------------------------------------*/
 /* Configure DMA                                                              */
 /*----------------------------------------------------------------------------*/
@@ -53,31 +51,6 @@ void MX_DMA_Init(void)
   HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
 
-}
-
-/* DCMI DMA Init */
-void MX_DCMI_DMA_Init(void)
-{
-  /* DCMI DMA Init */
-  hdma_dcmi.Instance = DMA2_Stream1;
-  hdma_dcmi.Init.Channel = DMA_CHANNEL_1;
-  hdma_dcmi.Init.Direction = DMA_PERIPH_TO_MEMORY;
-  hdma_dcmi.Init.PeriphInc = DMA_PINC_DISABLE;
-  hdma_dcmi.Init.MemInc = DMA_MINC_ENABLE;
-  hdma_dcmi.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
-  hdma_dcmi.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-  hdma_dcmi.Init.Mode = DMA_CIRCULAR;
-  hdma_dcmi.Init.Priority = DMA_PRIORITY_HIGH;
-  hdma_dcmi.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
-  hdma_dcmi.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
-  hdma_dcmi.Init.MemBurst = DMA_MBURST_SINGLE;
-  hdma_dcmi.Init.PeriphBurst = DMA_PBURST_SINGLE;
-  if (HAL_DMA_Init(&hdma_dcmi) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  __HAL_LINKDMA(&hdcmi, DMA_Handle, hdma_dcmi);
 }
 
 /* USER CODE BEGIN 2 */

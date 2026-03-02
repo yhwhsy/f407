@@ -27,7 +27,6 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "dcmi.h"
 
 /* DMA memory to memory transfer handles -------------------------------------*/
 
@@ -35,14 +34,11 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern DMA_HandleTypeDef hdma_dcmi;
-
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
 void MX_DMA_Init(void);
-void MX_DCMI_DMA_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 

@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "dcmi_capture.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
