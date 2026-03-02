@@ -126,46 +126,22 @@ else
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   
-  /* 测试模式：生成彩色条纹图像 */
-  uint16_t y_pos = 0;
-  uint8_t color_mode = 0;
-  
+  /* 单一颜色测试模式 */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
     
-    // 生成测试图像：彩色条纹
-    for (int row = 0; row < LINE_BUFFER_LINES; row++)
-    {
-        uint16_t actual_y = y_pos + row;
-        uint16_t color;
-        
-        // 根据Y坐标生成不同颜色条纹
-        if (actual_y < 60)       color = COLOR_RED;      // 红色条纹
-        else if (actual_y < 120) color = COLOR_GREEN;    // 绿色条纹  
-        else if (actual_y < 180) color = COLOR_BLUE;     // 蓝色条纹
-        else                     color = COLOR_WHITE;    // 白色条纹
-        
-        // 填充一行（320像素）
-        for (int x = 0; x < 320; x++)
-        {
-            uint32_t idx = (row * 320 + x) * 2;
-            g_line_buf[idx] = color >> 8;      // 高字节
-            g_line_buf[idx + 1] = color & 0xFF; // 低字节
-        }
-    }
-    
-    // 显示到屏幕
-    ST7789_DrawImage(0, y_pos, 320, LINE_BUFFER_LINES, g_line_buf);
-    
-    y_pos += LINE_BUFFER_LINES;
-    if (y_pos >= 240) 
-    {
-        y_pos = 0;
-        HAL_Delay(100);  // 每帧刷新后短暂延时
-    }
+    // 测试颜色定义：红、绿、蓝、白
+    ST7789_Fill(COLOR_RED);    // 应该是红色
+    HAL_Delay(800);
+    ST7789_Fill(COLOR_GREEN);  // 应该是绿色
+    HAL_Delay(800);
+    ST7789_Fill(COLOR_BLUE);   // 应该是蓝色
+    HAL_Delay(800);
+    ST7789_Fill(COLOR_WHITE);  // 应该是白色
+    HAL_Delay(800);
     
   }
   /* USER CODE END 3 */

@@ -36,15 +36,15 @@
 #define ST7789_WIDTH    320
 #define ST7789_HEIGHT   240
 
-/* ---------- 颜色定义 (适配屏幕实际格式：蓝红绿) ---------- */
+/* ---------- 颜色定义 (屏幕格式：R-B-G) ---------- */
 #define COLOR_BLACK     0x0000
 #define COLOR_WHITE     0xFFFF
-#define COLOR_RED       0x07E0  /* 实际显示红色（原绿色值） */
-#define COLOR_GREEN     0x001F  /* 实际显示绿色（原蓝色值） */
-#define COLOR_BLUE      0xF800  /* 实际显示蓝色（原红色值） */
-#define COLOR_YELLOW    0x07FF  /* 红+绿 */
-#define COLOR_CYAN      0xF81F  /* 绿+蓝 */
-#define COLOR_MAGENTA   0xFFE0  /* 红+蓝 */
+#define COLOR_RED       0xF800  /* 0xF800 = 红色 */
+#define COLOR_GREEN     0x07E0  /* 0x07E0 = 绿色 */
+#define COLOR_BLUE      0x001F  /* 0x001F = 蓝色 */
+#define COLOR_YELLOW    0xFFE0  /* 红+绿 = 0xF800 + 0x07E0 */
+#define COLOR_CYAN      0x07FF  /* 绿+蓝 = 0x07E0 + 0x001F */
+#define COLOR_MAGENTA   0xF81F  /* 红+蓝 = 0xF800 + 0x001F */
 
 /* ---------- ST7789 命令 ---------- */
 #define ST7789_NOP        0x00
