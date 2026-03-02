@@ -33,8 +33,8 @@
 #define TFT_BLK_OFF()   HAL_GPIO_WritePin(TFT_BLK_GPIO_PORT, TFT_BLK_PIN, GPIO_PIN_RESET)
 
 /* ---------- 屏幕尺寸 ---------- */
-#define ST7789_WIDTH    240
-#define ST7789_HEIGHT   320
+#define ST7789_WIDTH    320
+#define ST7789_HEIGHT   240
 
 /* ---------- 颜色定义 (RGB565) ---------- */
 #define COLOR_BLACK     0x0000

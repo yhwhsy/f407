@@ -327,7 +327,7 @@ void ST7789_SetRotation(uint8_t rotation)
     switch (rotation)
     {
         case 0: ST7789_WriteData8(0x00); break;                           /* 竖屏 */
-        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); break; /* 横屏 */
+        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); break; /* 横屏 */
         case 2: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MY); break; /* 竖屏翻转 */
         case 3: ST7789_WriteData8(ST7789_MADCTL_MY | ST7789_MADCTL_MV); break; /* 横屏翻转 */
         default: break;
