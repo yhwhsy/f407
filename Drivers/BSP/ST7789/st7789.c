@@ -333,3 +333,34 @@ void ST7789_SetRotation(uint8_t rotation)
         default: break;
     }
 }
+
+/**
+ * @brief 在屏幕特定区域显示图像数据 (用于局部刷新)
+ */
+void ST7789_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *data)
+{
+    if ((x >= ST7789_WIDTH) || (y >= ST7789_HEIGHT)) return;
+    
+    // 限制绘制范围不超过屏幕边界
+    uint16_t x_end = (x + w - 1 >= ST7789_WIDTH)  ? ST7789_WIDTH - 1  : x + w - 1;
+    uint16_t y_end = (y + h - 1 >= ST7789_HEIGHT) ? ST7789_HEIGHT - 1 : y + h - 1;
+    
+    ST7789_SetWindow(x, y, x_end, y_end);
+
+    TFT_DC_HIGH();
+    TFT_CS_LOW();
+
+    uint32_t len = w * h * 2; // RGB565 每个像素占 2 字节
+    uint32_t remaining = len;
+    uint8_t  *ptr      = data;
+
+    while (remaining > 0)
+    {
+        uint16_t chunk = (remaining > 65535) ? 65535 : (uint16_t)remaining;
+        HAL_SPI_Transmit(g_hspi, ptr, chunk, HAL_MAX_DELAY);
+        ptr       += chunk;
+        remaining -= chunk;
+    }
+
+    TFT_CS_HIGH();
+}

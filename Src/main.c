@@ -120,16 +120,35 @@ DCMI_Capture_Start();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint16_t current_y = 0; /* 记录当前刷到了屏幕的哪一行 */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (g_frame_ready)
-{
-    g_frame_ready = 0;
-    ST7789_WriteFrameBuffer(g_frame_buf, OV7670_FRAME_SIZE);
-}
+    if (flag_half_ready)
+    {
+        flag_half_ready = 0;
+        
+        // 把前 10 行的数据发给屏幕的 current_y 位置
+        ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[0]);
+        
+        current_y += (LINE_BUFFER_LINES / 2); // y 坐标往下走 10 行
+        if(current_y >= 240) current_y = 0;   // 刷满一屏，回到顶部 (OV7670 QVGA 高度是240)
+    }
+
+    // 2. DMA 填满了后 10 行 (后半段数据)
+    if (flag_full_ready)
+    {
+        flag_full_ready = 0;
+        
+        // 把后 10 行的数据发给屏幕的 current_y 位置
+        // 注意数据指针的起点偏移到了数组的后一半！
+        ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[LINE_BUFFER_SIZE / 2]);
+        
+        current_y += (LINE_BUFFER_LINES / 2);
+        if(current_y >= 240) current_y = 0;
+    }
   }
   /* USER CODE END 3 */
 }

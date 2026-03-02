@@ -6,22 +6,21 @@
 #include <stdint.h>
 
 /* ============================================================
- *  DCMI 帧采集管理
- *  DCMI连续模式 + DMA2 Stream1 (Channel1)
- *  帧缓冲存放在SRAM中
+ * DCMI 局部刷新采集管理 (乒乓缓冲)
  * ============================================================ */
 
-/* 帧缓冲（RGB565，320x240，153600字节）*/
-/* 放在CCMRAM可提升速度，但DCMI DMA不能访问CCMRAM！必须用SRAM */
-extern uint8_t g_frame_buf[OV7670_FRAME_SIZE];
+/* 定义行缓冲区大小：一次缓存20行，320像素宽，每个像素2字节(RGB565) */
+/* 内存只占 12.8 KB，完美适配 F407！*/
+#define LINE_BUFFER_LINES 20
+#define LINE_BUFFER_SIZE  (320 * LINE_BUFFER_LINES * 2)
 
-/* 帧就绪标志 */
-extern volatile uint8_t g_frame_ready;
+extern uint8_t g_line_buf[LINE_BUFFER_SIZE];
+extern volatile uint8_t flag_half_ready;
+extern volatile uint8_t flag_full_ready;
 
 /* ---------- 函数声明 ---------- */
 void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi, DMA_HandleTypeDef *hdma);
 void DCMI_Capture_Start(void);
 void DCMI_Capture_Stop(void);
 void DCMI_FrameComplete_Callback(void);
-
 #endif /* __DCMI_CAPTURE_H */

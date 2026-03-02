@@ -95,5 +95,5 @@ void ST7789_WriteCmd(uint8_t cmd);
 void ST7789_WriteData(uint8_t *data, uint16_t len);
 void ST7789_WriteData8(uint8_t data);
 void ST7789_WriteData16(uint16_t data);
-
+void ST7789_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *data);
 #endif /* __ST7789_H */
