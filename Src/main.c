@@ -103,45 +103,55 @@ ST7789_Init(&hspi1);
 ST7789_SetRotation(1);
 ST7789_Fill(COLOR_BLACK);
 
-/* 初始化OV7670 (跳过错误，继续测试TFT) */
-uint8_t cam_ret = OV7670_Init(&hi2c1);
-if (cam_ret != 0)
+/* 调试OV7670摄像头 */
+// 先显示黄色表示开始检测
+ST7789_Fill(COLOR_YELLOW);
+HAL_Delay(200);
+
+// 检查I2C总线状态
+HAL_StatusTypeDef i2c_status = HAL_I2C_IsDeviceReady(&hi2c1, OV7670_SCCB_ADDR, 3, 100);
+if (i2c_status != HAL_OK)
 {
-    // 摄像头初始化失败，显示蓝色提示，但继续执行测试
-    ST7789_Fill(COLOR_BLUE);
-    HAL_Delay(500);
+    // I2C设备未响应，显示红色
+    ST7789_Fill(COLOR_RED);
+    // 在主循环中显示错误码
+}
+
+// 尝试读取OV7670芯片ID
+uint8_t pid = 0, ver = 0;
+OV7670_ReadReg(0x0A, &pid);
+OV7670_ReadReg(0x0B, &ver);
+
+// 在屏幕上用颜色显示结果
+if (pid == 0x76)
+{
+    // PID正确，显示绿色闪烁
+    ST7789_Fill(COLOR_GREEN);
+    HAL_Delay(200);
+    ST7789_Fill(COLOR_BLACK);
+    HAL_Delay(200);
+    ST7789_Fill(COLOR_GREEN);
 }
 else
 {
-    // 摄像头初始化成功，显示绿色
-    ST7789_Fill(COLOR_GREEN);
-    HAL_Delay(300);
-    
-    /* 启动DCMI采集 */
-    DCMI_Capture_Init(&hdcmi, &hdma_dcmi);
-    DCMI_Capture_Start();
+    // PID错误，显示紫色（红+蓝）
+    ST7789_Fill(COLOR_MAGENTA);
 }
+HAL_Delay(1000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   
-  /* 单一颜色测试模式 */
+  /* 停止在这里，专注调试摄像头 */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
     
-    // 测试颜色定义：红、绿、蓝、白
-    ST7789_Fill(COLOR_RED);    // 应该是红色
-    HAL_Delay(800);
-    ST7789_Fill(COLOR_GREEN);  // 应该是绿色
-    HAL_Delay(800);
-    ST7789_Fill(COLOR_BLUE);   // 应该是蓝色
-    HAL_Delay(800);
-    ST7789_Fill(COLOR_WHITE);  // 应该是白色
-    HAL_Delay(800);
+    // 空循环，保持屏幕显示调试结果
+    HAL_Delay(100);
     
   }
   /* USER CODE END 3 */
