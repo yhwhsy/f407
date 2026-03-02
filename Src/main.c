@@ -200,10 +200,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
-{
-    DCMI_FrameComplete_Callback();
-}
+
 
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {

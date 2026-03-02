@@ -22,5 +22,4 @@ extern volatile uint8_t flag_full_ready;
 void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi, DMA_HandleTypeDef *hdma);
 void DCMI_Capture_Start(void);
 void DCMI_Capture_Stop(void);
-void DCMI_FrameComplete_Callback(void);
 #endif /* __DCMI_CAPTURE_H */
