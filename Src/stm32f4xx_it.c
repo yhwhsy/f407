@@ -235,11 +235,25 @@ void DCMI_IRQHandler(void)
   */
 void DMA2_Stream1_IRQHandler(void)
 {
+    /* 使用HAL DMA中断处理 */
     HAL_DMA_IRQHandler(&hdma_dcmi);
 }
 
-/**
-  * @brief This function handles DMA2 Stream3 global interrupt (SPI1 TX DMA).
-  */
+/* 覆盖HAL DMA回调函数实现乒乓缓冲 */
+void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
+{
+    if(hdma->Instance == DMA2_Stream1)
+    {
+        flag_half_ready = 1;
+    }
+}
+
+void HAL_DMA_TransferCpltCallback(DMA_HandleTypeDef *hdma)
+{
+    if(hdma->Instance == DMA2_Stream1)
+    {
+        flag_full_ready = 1;
+    }
+}
 
 /* USER CODE END 1 */

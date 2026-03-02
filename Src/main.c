@@ -103,50 +103,70 @@ ST7789_Init(&hspi1);
 ST7789_SetRotation(1);
 ST7789_Fill(COLOR_BLACK);
 
-/* 初始化OV7670 */
+/* 初始化OV7670 (跳过错误，继续测试TFT) */
 uint8_t cam_ret = OV7670_Init(&hi2c1);
 if (cam_ret != 0)
 {
-    ST7789_Fill(COLOR_RED);
-    while (1) { HAL_Delay(500); }
+    // 摄像头初始化失败，显示蓝色提示，但继续执行测试
+    ST7789_Fill(COLOR_BLUE);
+    HAL_Delay(500);
 }
-ST7789_Fill(COLOR_GREEN);
-HAL_Delay(300);
-
-/* 启动DCMI采集 */
-DCMI_Capture_Init(&hdcmi, &hdma_dcmi);
-DCMI_Capture_Start();
+else
+{
+    // 摄像头初始化成功，显示绿色
+    ST7789_Fill(COLOR_GREEN);
+    HAL_Delay(300);
+    
+    /* 启动DCMI采集 */
+    DCMI_Capture_Init(&hdcmi, &hdma_dcmi);
+    DCMI_Capture_Start();
+}
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint16_t current_y = 0; /* 记录当前刷到了屏幕的哪一行 */
+  
+  /* 测试模式：生成彩色条纹图像 */
+  uint16_t y_pos = 0;
+  uint8_t color_mode = 0;
+  
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (flag_half_ready)
+    
+    // 生成测试图像：彩色条纹
+    for (int row = 0; row < LINE_BUFFER_LINES; row++)
     {
-        flag_half_ready = 0;
-        // 把前 10 行的数据发给屏幕的 current_y 位置
-        ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[0]);
+        uint16_t actual_y = y_pos + row;
+        uint16_t color;
         
-        current_y += (LINE_BUFFER_LINES / 2); // y 坐标往下走 10 行
-        if(current_y >= 240) current_y = 0;   // 刷满一屏，回到顶部 (OV7670 QVGA 高度是240)
+        // 根据Y坐标生成不同颜色条纹
+        if (actual_y < 60)       color = COLOR_RED;      // 红色条纹
+        else if (actual_y < 120) color = COLOR_GREEN;    // 绿色条纹  
+        else if (actual_y < 180) color = COLOR_BLUE;     // 蓝色条纹
+        else                     color = COLOR_WHITE;    // 白色条纹
+        
+        // 填充一行（320像素）
+        for (int x = 0; x < 320; x++)
+        {
+            uint32_t idx = (row * 320 + x) * 2;
+            g_line_buf[idx] = color >> 8;      // 高字节
+            g_line_buf[idx + 1] = color & 0xFF; // 低字节
+        }
     }
-
-    // 2. DMA 填满了后 10 行 (后半段数据)
-    if (flag_full_ready)
+    
+    // 显示到屏幕
+    ST7789_DrawImage(0, y_pos, 320, LINE_BUFFER_LINES, g_line_buf);
+    
+    y_pos += LINE_BUFFER_LINES;
+    if (y_pos >= 240) 
     {
-        flag_full_ready = 0;
-        // 把后 10 行的数据发给屏幕的 current_y 位置
-        // 注意数据指针的起点偏移到了数组的后一半！
-        ST7789_DrawImage(0, current_y, 320, LINE_BUFFER_LINES / 2, &g_line_buf[LINE_BUFFER_SIZE / 2]);
-        
-        current_y += (LINE_BUFFER_LINES / 2);
-        if(current_y >= 240) current_y = 0;
+        y_pos = 0;
+        HAL_Delay(100);  // 每帧刷新后短暂延时
     }
+    
   }
   /* USER CODE END 3 */
 }

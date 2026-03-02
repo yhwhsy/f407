@@ -104,7 +104,7 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
 
     /* ---- 屏幕方向：横屏，显示OV7670 320x240 ---- */
     ST7789_WriteCmd(ST7789_MADCTL);
-    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏 */
+    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏，使用RGB格式（非BGR） */
 
     /* ---- 帧频控制 ---- */
     ST7789_WriteCmd(ST7789_PORCTRL);
@@ -166,8 +166,8 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
         ST7789_WriteData(d, 14);
     }
 
-    /* ---- 反色（ST7789需要开启才正常）---- */
-    ST7789_WriteCmd(ST7789_INVON);
+    /* ---- 关闭反色，使用正常显示 ---- */
+    ST7789_WriteCmd(ST7789_INVOFF);
     HAL_Delay(10);
 
     /* ---- 正常显示模式 ---- */
@@ -327,7 +327,7 @@ void ST7789_SetRotation(uint8_t rotation)
     switch (rotation)
     {
         case 0: ST7789_WriteData8(0x00); break;                           /* 竖屏 */
-        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); break; /* 横屏 */
+        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); break; /* 横屏 */
         case 2: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MY); break; /* 竖屏翻转 */
         case 3: ST7789_WriteData8(ST7789_MADCTL_MY | ST7789_MADCTL_MV); break; /* 横屏翻转 */
         default: break;

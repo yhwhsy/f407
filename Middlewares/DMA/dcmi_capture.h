@@ -18,6 +18,8 @@ extern uint8_t g_line_buf[LINE_BUFFER_SIZE];
 extern volatile uint8_t flag_half_ready;
 extern volatile uint8_t flag_full_ready;
 
+extern DMA_HandleTypeDef hdma_dcmi;
+
 /* ---------- 函数声明 ---------- */
 void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi, DMA_HandleTypeDef *hdma);
 void DCMI_Capture_Start(void);
