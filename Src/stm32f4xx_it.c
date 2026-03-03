@@ -57,7 +57,6 @@
 /* External variables --------------------------------------------------------*/
 extern DCMI_HandleTypeDef hdcmi;
 extern DMA_HandleTypeDef hdma_spi1_tx;
-extern DMA_HandleTypeDef hdma_dcmi;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -199,6 +198,21 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f4xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles DMA2 stream1 global interrupt (DCMI DMA).
+  */
+void DMA2_Stream1_IRQHandler(void)
+{
+  /* USER CODE BEGIN DMA2_Stream1_IRQn 0 */
+
+  /* USER CODE END DMA2_Stream1_IRQn 0 */
+  extern DMA_HandleTypeDef hdma_dcmi_local;
+  HAL_DMA_IRQHandler(&hdma_dcmi_local);
+  /* USER CODE BEGIN DMA2_Stream1_IRQn 1 */
+
+  /* USER CODE END DMA2_Stream1_IRQn 1 */
+}
 
 /**
   * @brief This function handles DMA2 stream3 global interrupt.

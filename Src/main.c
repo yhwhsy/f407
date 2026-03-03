@@ -105,42 +105,58 @@ ST7789_Init(&hspi1);
 ST7789_SetRotation(1);
 ST7789_Fill(COLOR_BLACK);
 
-/* 调试OV7670摄像头 - 使用软件I2C */
-// 先显示黄色表示开始检测
-ST7789_Fill(COLOR_YELLOW);
-HAL_Delay(200);
+/* 简化启动流程 */
+// 初始化OV7670摄像头（内部会自动初始化软件I2C）
+uint8_t ov_ret = OV7670_Init();
+if (ov_ret != 0)
+{
+    // 失败显示红色
+    ST7789_Fill(COLOR_RED);
+    while(1);
+}
 
-    // 初始化OV7670摄像头（内部会自动初始化软件I2C）
-    uint8_t ov_ret = OV7670_Init();
+// 初始化成功，直接启动DCMI
+DCMI_Capture_Init(&hdcmi);
+uint8_t start_result = DCMI_Capture_Start();
+if (start_result != 0)
+{
+    // 启动失败显示错误：1=绿, 2=蓝, 3=红
+    switch(start_result)
+    {
+        case 1: ST7789_Fill(COLOR_GREEN); break;
+        case 2: ST7789_Fill(COLOR_BLUE); break;
+        case 3: ST7789_Fill(COLOR_RED); break;
+    }
+    while(1);
+}
 
-    // 根据结果显示不同颜色
-    if (ov_ret == 0)
-    {
-        // 初始化成功，显示绿色闪烁
-        ST7789_Fill(COLOR_GREEN);
-        HAL_Delay(200);
-        ST7789_Fill(COLOR_BLACK);
-        HAL_Delay(200);
-        ST7789_Fill(COLOR_GREEN);
-        HAL_Delay(500);
-        
-        // 启动DCMI捕获
-        ST7789_Fill(COLOR_BLACK);
-        DCMI_Capture_Init(&hdcmi);
-        DCMI_Capture_Start();
-    }
-    else if (ov_ret == 1)
-    {
-        // ID读取失败，显示红色
-        ST7789_Fill(COLOR_RED);
-        while(1);  // 停止
-    }
-    else
-    {
-        // 寄存器写入失败，显示紫色
-        ST7789_Fill(COLOR_MAGENTA);
-        while(1);  // 停止
-    }
+// 启动成功，显示白色
+ST7789_Fill(COLOR_WHITE);
+HAL_Delay(300);
+
+// 检查同步信号
+uint8_t sync_check = DCMI_CheckSync();
+if (sync_check == 0)
+{
+    ST7789_Fill(0xFD20);  // 橙色 - 无信号
+    while(1);
+}
+else if (sync_check == 1)
+{
+    ST7789_Fill(0x867D);  // 浅蓝 - 只有HSYNC
+    while(1);
+}
+else if (sync_check == 2)
+{
+    ST7789_Fill(0xFE19);  // 粉色 - 只有VSYNC
+    while(1);
+}
+else
+{
+    // HSYNC+VSYNC都有，继续测试
+    ST7789_Fill(0x001F);  // 深蓝
+    HAL_Delay(300);
+}
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -154,6 +170,11 @@ HAL_Delay(200);
   static uint16_t current_y = 0;  /* 当前显示行 */
   static uint16_t line_buf[320];  /* 行转换缓冲区 */
   
+  /* 调试计数器 */
+  uint32_t debug_counter = 0;
+  uint32_t half_count = 0;
+  uint32_t full_count = 0;
+  
   while (1)
   {
     /* USER CODE END WHILE */
@@ -164,65 +185,29 @@ HAL_Delay(200);
     if (flag_half_ready)
     {
         flag_half_ready = 0;
+        half_count++;
         
-        for (uint8_t row = 0; row < 10; row++)
-        {
-            uint16_t y_pos = current_y + row;
-            if (y_pos >= 240) break;
-            
-            /* 获取行数据指针 */
-            uint8_t *src_row = &g_line_buf[row * 320 * 2];
-            
-            /* 字节交换并转换 */
-            for (uint16_t col = 0; col < 320; col++)
-            {
-                /* 交换高低字节，防止紫屏 */
-                line_buf[col] = (src_row[col * 2 + 1] << 8) | src_row[col * 2];
-            }
-            
-            /* 显示这一行 */
-            ST7789_SetWindow(0, y_pos, 319, y_pos);
-            TFT_DC_HIGH();
-            TFT_CS_LOW();
-            HAL_SPI_Transmit(&hspi1, (uint8_t*)line_buf, 640, HAL_MAX_DELAY);
-            TFT_CS_HIGH();
-        }
-        
-        current_y += 10;
-        if (current_y >= 240) current_y = 0;
+        /* DMA中断触发了，显示青色表示正常 */
+        ST7789_Fill(COLOR_CYAN);
+        HAL_Delay(100);
+        /* 恢复原色，表示等待下一次中断 */
+        ST7789_Fill(COLOR_BLACK);
     }
     
     /* 处理DMA全传输完成 - 显示后10行 */
     if (flag_full_ready)
     {
         flag_full_ready = 0;
+        full_count++;
         
-        for (uint8_t row = 0; row < 10; row++)
-        {
-            uint16_t y_pos = current_y + row;
-            if (y_pos >= 240) break;
-            
-            /* 后半缓冲区偏移：10行 */
-            uint8_t *src_row = &g_line_buf[(10 + row) * 320 * 2];
-            
-            /* 字节交换并转换 */
-            for (uint16_t col = 0; col < 320; col++)
-            {
-                line_buf[col] = (src_row[col * 2 + 1] << 8) | src_row[col * 2];
-            }
-            
-            /* 显示这一行 */
-            ST7789_SetWindow(0, y_pos, 319, y_pos);
-            TFT_DC_HIGH();
-            TFT_CS_LOW();
-            HAL_SPI_Transmit(&hspi1, (uint8_t*)line_buf, 640, HAL_MAX_DELAY);
-            TFT_CS_HIGH();
-        }
-        
-        current_y += 10;
-        if (current_y >= 240) current_y = 0;
+        /* DMA中断触发了，显示品红色表示正常 */
+        ST7789_Fill(COLOR_MAGENTA);
+        HAL_Delay(100);
+        /* 恢复原色，表示等待下一次中断 */
+        ST7789_Fill(COLOR_BLACK);
     }
     
+    HAL_Delay(10);  /* 10ms延时 */
   }
   /* USER CODE END 3 */
 }
