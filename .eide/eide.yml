@@ -33,7 +33,8 @@ targets:
         - Drivers/BSP/OV7670
         - Middlewares/DMA
       libList: []
-    excludeList: []
+    excludeList:
+      - Src/main_test.c
     toolchain: GCC
     toolchainConfigMap:
       GCC:
