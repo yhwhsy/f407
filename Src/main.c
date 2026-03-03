@@ -28,6 +28,7 @@
 /* USER CODE BEGIN Includes */
 #include "dcmi_capture.h"
 #include "ov7670.h"
+#include "st7789.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -109,10 +110,7 @@ ST7789_Fill(COLOR_BLACK);
 ST7789_Fill(COLOR_YELLOW);
 HAL_Delay(200);
 
-// 初始化软件I2C (PB8=SCL, PB9=SDA)
-SCCB_Init();
-
-// 初始化OV7670摄像头
+// 初始化OV7670摄像头（内部会自动初始化软件I2C）
 uint8_t ov_ret = OV7670_Init();
 
 // 根据结果显示不同颜色

@@ -334,6 +334,8 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
  */
 uint8_t OV7670_Init(void)
 {
+    /* 初始化软件I2C引脚 */
+    SCCB_Init();
 
     /* 上电序列 */
     OV7670_PWDN_LOW();   /* 退出掉电模式 */
