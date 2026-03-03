@@ -103,9 +103,7 @@
 #define REG_AWBC6       0x48
 #define REG_AWBCTR3     0x4C  /* AWB Control 3 */
 #define REG_AWBCTR2     0x4D  /* AWB Control 2 */
-/* 0x4E-0x4F是颜色矩阵MTX1/MTX2，不是AWB控制 */
-#define REG_AWBC4E      0x4E  /* Reserved/Other function */
-#define REG_AWBC4F      0x4F  /* Reserved/Other function */
+/* 注意：0x4E-0x4F是颜色矩阵MTX1/MTX2，不是AWB控制寄存器 */
 #define REG_GGAIN       0x6A  /* G通道AWB增益 */
 #define REG_DBLV        0x6B  /* PLL控制 */
 #define REG_REG76       0x76  /* OV保留 */

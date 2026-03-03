@@ -55,6 +55,7 @@ uint8_t g_line_buf[320 * 20 * 2];
 volatile uint8_t flag_half_ready = 0;
 volatile uint8_t flag_full_ready = 0;
 volatile uint32_t dma_irq_count = 0;  /* DMA中断计数器 */
+volatile uint16_t g_row = 0;          /* 当前屏幕写入行位置 */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -118,54 +119,71 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   uint32_t last_check = HAL_GetTick();
-  uint8_t test_y = 0;
+  uint32_t last_irq_count = 0;
   
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* 处理DMA半传输完成 - 前10行 (0-9) */
+    /* 处理DMA半传输完成 - 发送前10行 (g_line_buf[0] ~ g_line_buf[6399]) */
     if (flag_half_ready)
     {
         flag_half_ready = 0;
         dma_irq_count++;
         
-        /* 在屏幕顶部显示一行图像数据（测试） */
-        /* 注意：OV7670输出RGB565，ST7789需要BGR格式，需要字节交换 */
-        ST7789_SetWindow(0, test_y, 319, test_y);
-        TFT_DC_HIGH();
-        TFT_CS_LOW();
-        
-        /* 发送一行数据（640字节 = 320像素 x 2字节） */
-        /* 使用DMA传输提高效率 */
-        HAL_SPI_Transmit(&hspi1, g_line_buf, 640, HAL_MAX_DELAY);
-        
-        TFT_CS_HIGH();
-        
-        /* 移动测试行位置 */
-        test_y++;
-        if (test_y >= 240) test_y = 0;
+        /* 发送前10行完整数据到屏幕 */
+        if (g_row < 240 - 10)  /* 确保不超出屏幕底部 */
+        {
+            ST7789_SetWindow(0, g_row, 319, g_row + 9);  /* 10行窗口 */
+            TFT_DC_HIGH();
+            TFT_CS_LOW();
+            /* 发送6400字节 = 10行 x 320像素 x 2字节 */
+            HAL_SPI_Transmit(&hspi1, g_line_buf, 640 * 10, HAL_MAX_DELAY);
+            TFT_CS_HIGH();
+            
+            g_row += 10;  /* 移动到下10行位置 */
+        }
     }
     
-    /* 处理DMA全传输完成 - 后10行 (10-19) */
+    /* 处理DMA全传输完成 - 发送后10行 (g_line_buf[6400] ~ g_line_buf[12799]) */
     if (flag_full_ready)
     {
         flag_full_ready = 0;
         dma_irq_count++;
+        
+        /* 发送后10行完整数据到屏幕 */
+        if (g_row < 240 - 10)
+        {
+            ST7789_SetWindow(0, g_row, 319, g_row + 9);
+            TFT_DC_HIGH();
+            TFT_CS_LOW();
+            /* 发送后10行数据，从缓冲区偏移6400字节处开始 */
+            HAL_SPI_Transmit(&hspi1, g_line_buf + 640 * 10, 640 * 10, HAL_MAX_DELAY);
+            TFT_CS_HIGH();
+            
+            g_row += 10;
+        }
     }
     
-    /* 每秒检查一次DMA状态 */
+    /* 每秒检查一次DMA状态 - 持续心跳监测 */
     if (HAL_GetTick() - last_check >= 1000)
     {
         last_check = HAL_GetTick();
         
-        /* 如果DMA没有触发，显示蓝色 */
-        if (dma_irq_count == 0)
+        /* 如果DMA中断计数没有增加，显示蓝色警告 */
+        if (dma_irq_count == last_irq_count)
         {
             ST7789_Fill(COLOR_BLUE);
             HAL_Delay(100);
             ST7789_Fill(COLOR_BLACK);
+        }
+        last_irq_count = dma_irq_count;  /* 更新计数，用于下一秒比较 */
+        
+        /* 如果已经显示完整画面，重置行位置 */
+        if (g_row >= 240)
+        {
+            g_row = 0;
         }
     }
     /* USER CODE END 3 */
@@ -212,24 +230,19 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* DMA中断回调 - 半传输完成 */
-void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
+/* DCMI帧事件回调 - 半帧完成（前10行） */
+void HAL_DCMI_HalfFrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-    if(hdma->Instance == DMA2_Stream1)
-    {
-        flag_half_ready = 1;
-    }
+    flag_half_ready = 1;
 }
 
-/* DMA中断回调 - 传输完成 */
-void HAL_DMA_TransferCpltCallback(DMA_HandleTypeDef *hdma)
+/* DCMI帧事件回调 - 全帧完成（后10行） */
+void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-    if(hdma->Instance == DMA2_Stream1)
-    {
-        flag_full_ready = 1;
-    }
+    flag_full_ready = 1;
 }
 
+/* 保留SPI回调用于DMA传输 */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI1)
