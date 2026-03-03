@@ -52,10 +52,9 @@
 __attribute__((aligned(4)))
 uint8_t g_line_buf[320 * 20 * 2];
 
-volatile uint8_t flag_half_ready = 0;
-volatile uint8_t flag_full_ready = 0;
-volatile uint32_t dma_irq_count = 0;  /* DMA中断计数器 */
-/* g_row移到主循环作为普通变量，不声明为volatile */
+volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
+volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
+volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,7 +65,12 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+/* DCMI DMA半传输完成回调 - 手动注册，HAL_DCMI_Start_DMA不会自动设置 */
+static void DCMI_HalfFrame_Callback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    flag_half_ready = 1;
+}
 /* USER CODE END 0 */
 
 /**
@@ -110,6 +114,10 @@ int main(void)
   /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
   HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   
+  /* 手动注册半传输回调 - HAL_DCMI_Start_DMA不会自动设置XferHalfCpltCallback */
+  /* 注意：XferCpltCallback由HAL内部使用，不能覆盖！ */
+  hdcmi.DMA_Handle->XferHalfCpltCallback = DCMI_HalfFrame_Callback;
+  
   /* 显示绿色表示启动成功 */
   ST7789_Fill(COLOR_GREEN);
   HAL_Delay(500);
@@ -120,47 +128,43 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   uint32_t last_check = HAL_GetTick();
   uint32_t last_irq_count = 0;
-  uint16_t g_row = 0;  /* 当前屏幕写入行位置，普通变量即可 */
+  uint16_t g_row = 0;  /* 当前屏幕写入行位置 */
   
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* 处理DMA半传输完成 - 发送前10行 (g_line_buf[0] ~ g_line_buf[6399]) */
+    /* 处理DMA半传输完成 - 发送前10行 */
     if (flag_half_ready)
     {
         flag_half_ready = 0;
         dma_irq_count++;
         
-        /* 发送前10行完整数据到屏幕 */
-        ST7789_SetWindow(0, g_row, 319, g_row + 9);  /* 10行窗口 */
+        ST7789_SetWindow(0, g_row, 319, g_row + 9);
         TFT_DC_HIGH();
         TFT_CS_LOW();
-        /* 发送6400字节 = 10行 x 320像素 x 2字节 */
-        HAL_SPI_Transmit(&hspi1, g_line_buf, 640 * 10, HAL_MAX_DELAY);
+        HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
         
-        g_row += 10;  /* 移动到下10行位置 */
-        if (g_row >= 240) g_row = 0;  /* 步进后立即归零，不依赖心跳 */
+        g_row += 10;
+        if (g_row >= 240) g_row = 0;  /* 写满240行自动循环，不依赖帧中断 */
     }
     
-    /* 处理DMA全传输完成 - 发送后10行 (g_line_buf[6400] ~ g_line_buf[12799]) */
+    /* 处理DMA全传输完成 - 发送后10行 */
     if (flag_full_ready)
     {
         flag_full_ready = 0;
         dma_irq_count++;
         
-        /* 发送后10行完整数据到屏幕 */
         ST7789_SetWindow(0, g_row, 319, g_row + 9);
         TFT_DC_HIGH();
         TFT_CS_LOW();
-        /* 发送后10行数据，从缓冲区偏移6400字节处开始 */
-        HAL_SPI_Transmit(&hspi1, g_line_buf + 640 * 10, 640 * 10, HAL_MAX_DELAY);
+        HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
         
         g_row += 10;
-        if (g_row >= 240) g_row = 0;  /* 步进后立即归零 */
+        if (g_row >= 240) g_row = 0;  /* 写满240行自动循环 */
     }
     
     /* 每秒检查一次DMA状态 - 持续心跳监测 */
@@ -175,7 +179,7 @@ int main(void)
             HAL_Delay(100);
             ST7789_Fill(COLOR_BLACK);
         }
-        last_irq_count = dma_irq_count;  /* 更新计数，用于下一秒比较 */
+        last_irq_count = dma_irq_count;
     }
     /* USER CODE END 3 */
   }
@@ -221,19 +225,22 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/* DCMI帧事件回调 - 半帧完成（前10行） */
-void HAL_DCMI_HalfFrameEventCallback(DCMI_HandleTypeDef *hdcmi)
-{
-    flag_half_ready = 1;
-}
+/* 
+ * 回调机制说明：
+ * - 半传输：XferHalfCpltCallback = DCMI_HalfFrame_Callback（手动注册）
+ * - 全传输：由HAL内部DCMI_DMAXferCplt处理，最终触发帧中断
+ * - 帧中断：在单段DMA模式下每20行触发一次，不代表真正帧结束
+ */
 
-/* DCMI帧事件回调 - 全帧完成（后10行） */
+/* DCMI帧完成回调 - 在单段DMA模式下每20行触发一次 */
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
-    flag_full_ready = 1;
+    UNUSED(hdcmi);
+    flag_full_ready = 1;   /* 通知：后10行数据就绪 */
+    /* 注意：不能在这里归零g_row，因为此回调每20行触发一次，不是每帧一次 */
 }
 
-/* 保留SPI回调用于DMA传输 */
+/* SPI DMA传输完成回调 */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI1)

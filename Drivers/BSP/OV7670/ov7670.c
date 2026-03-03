@@ -243,12 +243,12 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
     /* 缩放控制（QVGA = VGA/2）*/
     {REG_COM3,    0x04},   /* 使能缩放 */
-    {REG_COM14,   0x19},   /* 手动缩放，PCLK分频 */
+    {REG_COM14,   0x18},   /* 手动缩放使能+DCW使能，PCLK不分频(bit[2:0]=000) */
     {REG_SCALING_XSC,      0x3A},
     {REG_SCALING_YSC,      0x35},
     {REG_SCALING_DCWCTR,   0x11},   /* 水平/垂直各降采样2倍 */
     {REG_SCALING_PC,       0xF1},   /* PCLK分频 */
-    {REG_SCALING_PCLK_DIV, 0x02},
+    {REG_SCALING_PCLK_DIV, 0x00},   /* 不额外分频 */
 
     /* AEC/AGC控制 */
     {REG_COM8,    0xE5},   /* 使能AGC, AEC, AWB */
@@ -303,14 +303,15 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     /* HSYNC / VSYNC 极性 */
     /* 
      * COM10寄存器位定义：
-     * Bit 0: PCLK极性 (0=正常/上升沿, 1=反向/下降沿)
-     * Bit 1: HREF极性 (0=高有效, 1=低有效) - DCMI HSPolarity=LOW 需要1
-     * Bit 6: VSYNC极性 (0=高有效, 1=低有效) - DCMI VSPolarity=LOW 需要1
+     * Bit 1: HREF取反 (1=低有效) - DCMI HSPolarity=LOW，需要bit1=1
+     * Bit 6: VSYNC取反 (1=取反)  - DCMI VSPolarity=LOW，OV7670默认帧有效期
+     *        已经是LOW，不需要取反，bit6=0
      * 
-     * 当前DCMI配置: VSPolarity=LOW, HSPolarity=LOW, PCKPolarity=RISING
-     * 需要COM10 = 0x42 (Bit6 + Bit1)
+     * OV7670默认：帧有效期VSYNC=LOW，与DCMI VSPolarity=LOW匹配，无需取反
+     * HREF需要取反以匹配DCMI HSPolarity=LOW
+     * COM10 = 0x02 (仅bit1)
      */
-    {REG_COM10,   0x42},   /* VSYNC低有效，HSYNC低有效，PCLK上升沿有效 */
+    {REG_COM10,   0x02},   /* HREF低有效，VSYNC保持默认（帧有效期=LOW），PCLK上升沿 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
