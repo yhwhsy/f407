@@ -6,11 +6,11 @@
 #include <stdint.h>
 
 /* ============================================================
- * DCMI 局部刷新采集管理 (乒乓缓冲)
+ * DCMI 行缓冲采集管理 (乒乓缓冲 - 12.8KB)
  * ============================================================ */
 
 /* 定义行缓冲区大小：一次缓存20行，320像素宽，每个像素2字节(RGB565) */
-/* 内存只占 12.8 KB，完美适配 F407！*/
+/* 内存只占 12.8 KB */
 #define LINE_BUFFER_LINES 20
 #define LINE_BUFFER_SIZE  (320 * LINE_BUFFER_LINES * 2)
 
@@ -18,10 +18,9 @@ extern uint8_t g_line_buf[LINE_BUFFER_SIZE];
 extern volatile uint8_t flag_half_ready;
 extern volatile uint8_t flag_full_ready;
 
-extern DMA_HandleTypeDef hdma_dcmi;
-
 /* ---------- 函数声明 ---------- */
-void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi, DMA_HandleTypeDef *hdma);
+void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi);
 void DCMI_Capture_Start(void);
 void DCMI_Capture_Stop(void);
+
 #endif /* __DCMI_CAPTURE_H */

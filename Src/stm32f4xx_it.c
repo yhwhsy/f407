@@ -230,16 +230,11 @@ void DCMI_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
-/**
-  * @brief This function handles DMA2 Stream1 global interrupt (DCMI DMA).
-  */
-void DMA2_Stream1_IRQHandler(void)
-{
-    /* 使用HAL DMA中断处理 */
-    HAL_DMA_IRQHandler(&hdma_dcmi);
-}
+/* 来自 dcmi_capture.c 的外部变量 */
+extern volatile uint8_t flag_half_ready;
+extern volatile uint8_t flag_full_ready;
 
-/* 覆盖HAL DMA回调函数实现乒乓缓冲 */
+/* DMA 半传输完成回调（前10行） */
 void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
 {
     if(hdma->Instance == DMA2_Stream1)
@@ -248,6 +243,7 @@ void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
     }
 }
 
+/* DMA 全传输完成回调（后10行） */
 void HAL_DMA_TransferCpltCallback(DMA_HandleTypeDef *hdma)
 {
     if(hdma->Instance == DMA2_Stream1)

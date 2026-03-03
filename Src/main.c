@@ -110,44 +110,118 @@ ST7789_Fill(COLOR_BLACK);
 ST7789_Fill(COLOR_YELLOW);
 HAL_Delay(200);
 
-// 初始化OV7670摄像头（内部会自动初始化软件I2C）
-uint8_t ov_ret = OV7670_Init();
+    // 初始化OV7670摄像头（内部会自动初始化软件I2C）
+    uint8_t ov_ret = OV7670_Init();
 
-// 根据结果显示不同颜色
-if (ov_ret == 0)
-{
-    // 初始化成功，显示绿色闪烁
-    ST7789_Fill(COLOR_GREEN);
-    HAL_Delay(200);
-    ST7789_Fill(COLOR_BLACK);
-    HAL_Delay(200);
-    ST7789_Fill(COLOR_GREEN);
-}
-else if (ov_ret == 1)
-{
-    // ID读取失败，显示红色
-    ST7789_Fill(COLOR_RED);
-}
-else
-{
-    // 寄存器写入失败，显示紫色
-    ST7789_Fill(COLOR_MAGENTA);
-}
-HAL_Delay(1000);
+    // 根据结果显示不同颜色
+    if (ov_ret == 0)
+    {
+        // 初始化成功，显示绿色闪烁
+        ST7789_Fill(COLOR_GREEN);
+        HAL_Delay(200);
+        ST7789_Fill(COLOR_BLACK);
+        HAL_Delay(200);
+        ST7789_Fill(COLOR_GREEN);
+        HAL_Delay(500);
+        
+        // 启动DCMI捕获
+        ST7789_Fill(COLOR_BLACK);
+        DCMI_Capture_Init(&hdcmi);
+        DCMI_Capture_Start();
+    }
+    else if (ov_ret == 1)
+    {
+        // ID读取失败，显示红色
+        ST7789_Fill(COLOR_RED);
+        while(1);  // 停止
+    }
+    else
+    {
+        // 寄存器写入失败，显示紫色
+        ST7789_Fill(COLOR_MAGENTA);
+        while(1);  // 停止
+    }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   
-  /* 停止在这里，专注调试摄像头 */
+  /* 行缓冲捕获和显示 */
+  extern uint8_t g_line_buf[];
+  extern volatile uint8_t flag_half_ready;
+  extern volatile uint8_t flag_full_ready;
+  
+  static uint16_t current_y = 0;  /* 当前显示行 */
+  static uint16_t line_buf[320];  /* 行转换缓冲区 */
+  
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
     
-    // 空循环，保持屏幕显示调试结果
-    HAL_Delay(100);
+    /* 处理DMA半传输完成 - 显示前10行 */
+    if (flag_half_ready)
+    {
+        flag_half_ready = 0;
+        
+        for (uint8_t row = 0; row < 10; row++)
+        {
+            uint16_t y_pos = current_y + row;
+            if (y_pos >= 240) break;
+            
+            /* 获取行数据指针 */
+            uint8_t *src_row = &g_line_buf[row * 320 * 2];
+            
+            /* 字节交换并转换 */
+            for (uint16_t col = 0; col < 320; col++)
+            {
+                /* 交换高低字节，防止紫屏 */
+                line_buf[col] = (src_row[col * 2 + 1] << 8) | src_row[col * 2];
+            }
+            
+            /* 显示这一行 */
+            ST7789_SetWindow(0, y_pos, 319, y_pos);
+            TFT_DC_HIGH();
+            TFT_CS_LOW();
+            HAL_SPI_Transmit(&hspi1, (uint8_t*)line_buf, 640, HAL_MAX_DELAY);
+            TFT_CS_HIGH();
+        }
+        
+        current_y += 10;
+        if (current_y >= 240) current_y = 0;
+    }
+    
+    /* 处理DMA全传输完成 - 显示后10行 */
+    if (flag_full_ready)
+    {
+        flag_full_ready = 0;
+        
+        for (uint8_t row = 0; row < 10; row++)
+        {
+            uint16_t y_pos = current_y + row;
+            if (y_pos >= 240) break;
+            
+            /* 后半缓冲区偏移：10行 */
+            uint8_t *src_row = &g_line_buf[(10 + row) * 320 * 2];
+            
+            /* 字节交换并转换 */
+            for (uint16_t col = 0; col < 320; col++)
+            {
+                line_buf[col] = (src_row[col * 2 + 1] << 8) | src_row[col * 2];
+            }
+            
+            /* 显示这一行 */
+            ST7789_SetWindow(0, y_pos, 319, y_pos);
+            TFT_DC_HIGH();
+            TFT_CS_LOW();
+            HAL_SPI_Transmit(&hspi1, (uint8_t*)line_buf, 640, HAL_MAX_DELAY);
+            TFT_CS_HIGH();
+        }
+        
+        current_y += 10;
+        if (current_y >= 240) current_y = 0;
+    }
     
   }
   /* USER CODE END 3 */

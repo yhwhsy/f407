@@ -7,37 +7,23 @@ uint8_t g_line_buf[LINE_BUFFER_SIZE];
 volatile uint8_t flag_half_ready = 0;
 volatile uint8_t flag_full_ready = 0;
 
-/* DCMI DMA 句柄 - 供 main.c 使用 */
-DMA_HandleTypeDef hdma_dcmi;
-
 static DCMI_HandleTypeDef *g_hdcmi = NULL;
 
-void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi, DMA_HandleTypeDef *hdma)
+/**
+ * @brief 初始化 DCMI 捕获
+ * @param hdcmi DCMI 句柄（CubeMX 生成）
+ */
+void DCMI_Capture_Init(DCMI_HandleTypeDef *hdcmi)
 {
     g_hdcmi = hdcmi;
     
-    /* 初始化DMA句柄 - DCMI使用DMA2 Stream1 Channel1 */
-    hdma_dcmi.Instance = DMA2_Stream1;
-    hdma_dcmi.Init.Channel = DMA_CHANNEL_1;
-    hdma_dcmi.Init.Direction = DMA_PERIPH_TO_MEMORY;  /* 外设到内存 */
-    hdma_dcmi.Init.PeriphInc = DMA_PINC_DISABLE;      /* 外设地址不递增 */
-    hdma_dcmi.Init.MemInc = DMA_MINC_ENABLE;          /* 内存地址递增 */
-    hdma_dcmi.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;  /* DCMI_DR是32位 */
-    hdma_dcmi.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;     /* 内存32位对齐 */
-    hdma_dcmi.Init.Mode = DMA_CIRCULAR;               /* 循环模式用于乒乓缓冲 */
-    hdma_dcmi.Init.Priority = DMA_PRIORITY_HIGH;
-    hdma_dcmi.Init.FIFOMode = DMA_FIFOMODE_ENABLE;    /* 启用FIFO */
-    hdma_dcmi.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
-    hdma_dcmi.Init.MemBurst = DMA_MBURST_SINGLE;
-    hdma_dcmi.Init.PeriphBurst = DMA_PBURST_SINGLE;
-    
-    /* 初始化DMA */
-    HAL_DMA_Init(&hdma_dcmi);
-    
-    /* 链接DMA到DCMI外设 */
-    __HAL_LINKDMA(hdcmi, DMA_Handle, hdma_dcmi);
+    /* CubeMX 已经初始化了 DMA，这里只需要链接到 DCMI */
+    /* DMA 配置在 dcmi.c 的 HAL_DCMI_MspInit 中完成 */
 }
 
+/**
+ * @brief 启动 DCMI 捕获（循环模式）
+ */
 void DCMI_Capture_Start(void)
 {
     flag_half_ready = 0;
@@ -51,6 +37,9 @@ void DCMI_Capture_Start(void)
                        LINE_BUFFER_SIZE / 4);
 }
 
+/**
+ * @brief 停止 DCMI 捕获
+ */
 void DCMI_Capture_Stop(void)
 {
     HAL_DCMI_Stop(g_hdcmi);
