@@ -2,14 +2,162 @@
  ******************************************************************************
  * @file    ov7670.c
  * @brief   OV7670 摄像头驱动实现
- *          使用I2C1（SCCB协议）配置寄存器
+ *          使用软件I2C（GPIO模拟SCCB协议）
  *          输出格式：RGB565，分辨率：QVGA (320x240)
  ******************************************************************************
  */
 
 #include "ov7670.h"
 
-static I2C_HandleTypeDef *g_hi2c = NULL;
+/* 软件I2C引脚定义 */
+#define SCCB_SCL_PIN    GPIO_PIN_8
+#define SCCB_SDA_PIN    GPIO_PIN_9
+#define SCCB_GPIO_PORT  GPIOB
+
+/* 延时函数（微秒级） */
+static void SCCB_Delay(void)
+{
+    for(volatile int i = 0; i < 20; i++);  /* 约5-10us @168MHz */
+}
+
+/* SCL控制 */
+#define SCCB_SCL_H()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SCL_PIN, GPIO_PIN_SET)
+#define SCCB_SCL_L()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SCL_PIN, GPIO_PIN_RESET)
+
+/* SDA控制 */
+#define SCCB_SDA_H()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SDA_PIN, GPIO_PIN_SET)
+#define SCCB_SDA_L()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SDA_PIN, GPIO_PIN_RESET)
+#define SCCB_SDA_READ() HAL_GPIO_ReadPin(SCCB_GPIO_PORT, SCCB_SDA_PIN)
+
+/* ============================================================
+ *  软件I2C底层函数
+ * ============================================================ */
+
+/**
+ * @brief 初始化软件I2C GPIO
+ */
+void SCCB_Init(void)
+{
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    /* SCL - 推挽输出 */
+    GPIO_InitStruct.Pin = SCCB_SCL_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(SCCB_GPIO_PORT, &GPIO_InitStruct);
+    
+    /* SDA - 开漏输出（双向） */
+    GPIO_InitStruct.Pin = SCCB_SDA_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(SCCB_GPIO_PORT, &GPIO_InitStruct);
+    
+    /* 初始状态：SCL=H, SDA=H */
+    SCCB_SCL_H();
+    SCCB_SDA_H();
+    SCCB_Delay();
+}
+
+/**
+ * @brief I2C起始信号
+ */
+void SCCB_Start(void)
+{
+    SCCB_SDA_H();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SDA_L();
+    SCCB_Delay();
+    SCCB_SCL_L();
+    SCCB_Delay();
+}
+
+/**
+ * @brief I2C停止信号
+ */
+void SCCB_Stop(void)
+{
+    SCCB_SDA_L();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SDA_H();
+    SCCB_Delay();
+}
+
+/**
+ * @brief 发送一个字节
+ * @param dat 要发送的数据
+ * @return 0=成功收到ACK, 1=失败
+ */
+uint8_t SCCB_SendByte(uint8_t dat)
+{
+    for(uint8_t i = 0; i < 8; i++)
+    {
+        if(dat & 0x80)
+            SCCB_SDA_H();
+        else
+            SCCB_SDA_L();
+        dat <<= 1;
+        SCCB_Delay();
+        SCCB_SCL_H();
+        SCCB_Delay();
+        SCCB_SCL_L();
+        SCCB_Delay();
+    }
+    
+    /* 读取ACK */
+    SCCB_SDA_H();  /* 释放SDA */
+    SCCB_Delay();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    uint8_t ack = SCCB_SDA_READ();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    
+    return ack;  /* 0=ACK, 1=NACK */
+}
+
+/**
+ * @brief 接收一个字节
+ * @param ack 发送的应答 0=ACK, 1=NACK
+ * @return 接收到的数据
+ */
+uint8_t SCCB_ReceiveByte(uint8_t ack)
+{
+    uint8_t dat = 0;
+    
+    SCCB_SDA_H();  /* 释放SDA */
+    
+    for(uint8_t i = 0; i < 8; i++)
+    {
+        dat <<= 1;
+        SCCB_SCL_H();
+        SCCB_Delay();
+        if(SCCB_SDA_READ())
+            dat |= 0x01;
+        SCCB_SCL_L();
+        SCCB_Delay();
+    }
+    
+    /* 发送ACK/NACK */
+    if(ack)
+        SCCB_SDA_H();
+    else
+        SCCB_SDA_L();
+    SCCB_Delay();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    SCCB_SDA_H();
+    
+    return dat;
+}
 
 /* ============================================================
  *  SCCB (I2C) 寄存器读写
@@ -23,11 +171,16 @@ static I2C_HandleTypeDef *g_hi2c = NULL;
  */
 uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val)
 {
-    uint8_t buf[2] = {reg, val};
-    HAL_StatusTypeDef ret;
-    ret = HAL_I2C_Master_Transmit(g_hi2c, OV7670_SCCB_ADDR, buf, 2, 100);
+    uint8_t ret = 0;
+    
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR)) ret = 1;  /* 写地址 */
+    if(SCCB_SendByte(reg)) ret = 1;               /* 寄存器地址 */
+    if(SCCB_SendByte(val)) ret = 1;               /* 数据 */
+    SCCB_Stop();
+    
     HAL_Delay(1);  /* SCCB需要稳定时间 */
-    return (ret == HAL_OK) ? 0 : 1;
+    return ret;
 }
 
 /**
@@ -38,13 +191,23 @@ uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val)
  */
 uint8_t OV7670_ReadReg(uint8_t reg, uint8_t *val)
 {
-    HAL_StatusTypeDef ret;
-    /* SCCB读取：先发寄存器地址，再读数据 */
-    ret = HAL_I2C_Master_Transmit(g_hi2c, OV7670_SCCB_ADDR, &reg, 1, 100);
-    if (ret != HAL_OK) return 1;
+    uint8_t ret = 0;
+    
+    /* 阶段1：写寄存器地址 */
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR)) ret = 1;
+    if(SCCB_SendByte(reg)) ret = 1;
+    SCCB_Stop();
+    
     HAL_Delay(1);
-    ret = HAL_I2C_Master_Receive(g_hi2c, OV7670_SCCB_ADDR | 0x01, val, 1, 100);
-    return (ret == HAL_OK) ? 0 : 1;
+    
+    /* 阶段2：读数据 */
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR | 0x01)) ret = 1;  /* 读地址 */
+    *val = SCCB_ReceiveByte(1);  /* 接收并发送NACK */
+    SCCB_Stop();
+    
+    return ret;
 }
 
 /* ============================================================
@@ -167,12 +330,10 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
 /**
  * @brief OV7670初始化
- * @param hi2c  I2C句柄（I2C1）
  * @return 0=成功, 1=ID读取失败, 2=寄存器写入失败
  */
-uint8_t OV7670_Init(I2C_HandleTypeDef *hi2c)
+uint8_t OV7670_Init(void)
 {
-    g_hi2c = hi2c;
 
     /* 上电序列 */
     OV7670_PWDN_LOW();   /* 退出掉电模式 */

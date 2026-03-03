@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "dcmi_capture.h"
+#include "ov7670.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -103,38 +104,35 @@ ST7789_Init(&hspi1);
 ST7789_SetRotation(1);
 ST7789_Fill(COLOR_BLACK);
 
-/* 调试OV7670摄像头 */
+/* 调试OV7670摄像头 - 使用软件I2C */
 // 先显示黄色表示开始检测
 ST7789_Fill(COLOR_YELLOW);
 HAL_Delay(200);
 
-// 检查I2C总线状态
-HAL_StatusTypeDef i2c_status = HAL_I2C_IsDeviceReady(&hi2c1, OV7670_SCCB_ADDR, 3, 100);
-if (i2c_status != HAL_OK)
-{
-    // I2C设备未响应，显示红色
-    ST7789_Fill(COLOR_RED);
-    // 在主循环中显示错误码
-}
+// 初始化软件I2C (PB8=SCL, PB9=SDA)
+SCCB_Init();
 
-// 尝试读取OV7670芯片ID
-uint8_t pid = 0, ver = 0;
-OV7670_ReadReg(0x0A, &pid);
-OV7670_ReadReg(0x0B, &ver);
+// 初始化OV7670摄像头
+uint8_t ov_ret = OV7670_Init();
 
-// 在屏幕上用颜色显示结果
-if (pid == 0x76)
+// 根据结果显示不同颜色
+if (ov_ret == 0)
 {
-    // PID正确，显示绿色闪烁
+    // 初始化成功，显示绿色闪烁
     ST7789_Fill(COLOR_GREEN);
     HAL_Delay(200);
     ST7789_Fill(COLOR_BLACK);
     HAL_Delay(200);
     ST7789_Fill(COLOR_GREEN);
 }
+else if (ov_ret == 1)
+{
+    // ID读取失败，显示红色
+    ST7789_Fill(COLOR_RED);
+}
 else
 {
-    // PID错误，显示紫色（红+蓝）
+    // 寄存器写入失败，显示紫色
     ST7789_Fill(COLOR_MAGENTA);
 }
 HAL_Delay(1000);

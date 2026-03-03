@@ -134,8 +134,11 @@
 #define COM15_RGB565    0x10  /* RGB565输出 */
 #define COM15_RGB555    0x30  /* RGB555输出 */
 
+/* ---------- 软件I2C函数声明 ---------- */
+void    SCCB_Init(void);
+
 /* ---------- 函数声明 ---------- */
-uint8_t OV7670_Init(I2C_HandleTypeDef *hi2c);
+uint8_t OV7670_Init(void);
 uint8_t OV7670_ReadReg(uint8_t reg, uint8_t *val);
 uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val);
 uint8_t OV7670_CheckID(void);
