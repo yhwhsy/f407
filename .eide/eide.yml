@@ -7,7 +7,6 @@ srcDirs:
   - Startup
   - Src
   - Drivers
-  - Middlewares
 virtualFolder:
   name: <virtual_root>
   files: []

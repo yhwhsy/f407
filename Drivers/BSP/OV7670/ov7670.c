@@ -259,11 +259,11 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_AEB,     0x63},   /* AEC下界 */
     {REG_VPT,     0xD4},   /* 快速AEC操作区 */
 
-    /* AWB控制 */
-    {REG_AWBCTR0, 0xAA},
-    {REG_AWBCTR1, 0x11},
-    {REG_AWBCTR2, 0x01},
-    {REG_AWBCTR3, 0x14},
+    /* AWB控制 - 使用正确的寄存器 */
+    {0x6F, 0xAA},   /* AWB Control 0 */
+    {0x6E, 0x11},   /* AWB Control 1 */
+    {0x6D, 0x01},   /* AWB Control 2 - 实际为0x6D */
+    {REG_AWBCTR3, 0x14},   /* AWB Control 3 */
 
     /* 颜色矩阵（RGB565 from OV7670 官方推荐）*/
     {0x4F,        0x80},

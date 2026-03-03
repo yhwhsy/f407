@@ -106,6 +106,7 @@ int main(void)
   }
 
   /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
+  /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
   HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   
   /* 显示绿色表示启动成功 */
