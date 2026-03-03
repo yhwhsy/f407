@@ -26,7 +26,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "dcmi_capture.h"
 #include "ov7670.h"
 #include "st7789.h"
 /* USER CODE END Includes */
@@ -49,7 +48,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+/* 行缓冲区 - 20行 x 320像素 x 2字节 */
+__attribute__((aligned(4)))
+uint8_t g_line_buf[320 * 20 * 2];
 
+volatile uint8_t flag_half_ready = 0;
+volatile uint8_t flag_full_ready = 0;
+volatile uint32_t dma_irq_count = 0;  /* DMA中断计数器 */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -69,25 +74,14 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -96,120 +90,85 @@ int main(void)
   MX_DCMI_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
+  
   /* USER CODE BEGIN 2 */
-/* MCO1已在SystemClock_Config中配置，此处无需重复 */
-HAL_Delay(10);
+  /* 初始化TFT */
+  ST7789_Init(&hspi1);
+  ST7789_SetRotation(1);
+  ST7789_Fill(COLOR_BLACK);
 
-/* 初始化TFT */
-ST7789_Init(&hspi1);
-ST7789_SetRotation(1);
-ST7789_Fill(COLOR_BLACK);
+  /* 初始化OV7670 */
+  uint8_t ov_ret = OV7670_Init();
+  if (ov_ret != 0)
+  {
+      ST7789_Fill(COLOR_RED);  /* 失败 */
+      while(1);
+  }
 
-/* 简化启动流程 */
-// 初始化OV7670摄像头（内部会自动初始化软件I2C）
-uint8_t ov_ret = OV7670_Init();
-if (ov_ret != 0)
-{
-    // 失败显示红色
-    ST7789_Fill(COLOR_RED);
-    while(1);
-}
-
-// 初始化成功，直接启动DCMI
-DCMI_Capture_Init(&hdcmi);
-uint8_t start_result = DCMI_Capture_Start();
-if (start_result != 0)
-{
-    // 启动失败显示错误：1=绿, 2=蓝, 3=红
-    switch(start_result)
-    {
-        case 1: ST7789_Fill(COLOR_GREEN); break;
-        case 2: ST7789_Fill(COLOR_BLUE); break;
-        case 3: ST7789_Fill(COLOR_RED); break;
-    }
-    while(1);
-}
-
-// 启动成功，显示白色
-ST7789_Fill(COLOR_WHITE);
-HAL_Delay(300);
-
-// 检查同步信号
-uint8_t sync_check = DCMI_CheckSync();
-if (sync_check == 0)
-{
-    ST7789_Fill(0xFD20);  // 橙色 - 无信号
-    while(1);
-}
-else if (sync_check == 1)
-{
-    ST7789_Fill(0x867D);  // 浅蓝 - 只有HSYNC
-    while(1);
-}
-else if (sync_check == 2)
-{
-    ST7789_Fill(0xFE19);  // 粉色 - 只有VSYNC
-    while(1);
-}
-else
-{
-    // HSYNC+VSYNC都有，继续测试
-    ST7789_Fill(0x001F);  // 深蓝
-    HAL_Delay(300);
-}
+  /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
+  HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
+  
+  /* 显示绿色表示启动成功 */
+  ST7789_Fill(COLOR_GREEN);
+  HAL_Delay(500);
+  ST7789_Fill(COLOR_BLACK);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  
-  /* 行缓冲捕获和显示 */
-  extern uint8_t g_line_buf[];
-  extern volatile uint8_t flag_half_ready;
-  extern volatile uint8_t flag_full_ready;
-  
-  static uint16_t current_y = 0;  /* 当前显示行 */
-  static uint16_t line_buf[320];  /* 行转换缓冲区 */
-  
-  /* 调试计数器 */
-  uint32_t debug_counter = 0;
-  uint32_t half_count = 0;
-  uint32_t full_count = 0;
+  uint32_t last_check = HAL_GetTick();
+  uint8_t test_y = 0;
   
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    
-    /* 处理DMA半传输完成 - 显示前10行 */
+    /* 处理DMA半传输完成 - 前10行 (0-9) */
     if (flag_half_ready)
     {
         flag_half_ready = 0;
-        half_count++;
+        dma_irq_count++;
         
-        /* DMA中断触发了，显示青色表示正常 */
-        ST7789_Fill(COLOR_CYAN);
-        HAL_Delay(100);
-        /* 恢复原色，表示等待下一次中断 */
-        ST7789_Fill(COLOR_BLACK);
+        /* 在屏幕顶部显示一行图像数据（测试） */
+        /* 注意：OV7670输出RGB565，ST7789需要BGR格式，需要字节交换 */
+        ST7789_SetWindow(0, test_y, 319, test_y);
+        TFT_DC_HIGH();
+        TFT_CS_LOW();
+        
+        /* 发送一行数据（640字节 = 320像素 x 2字节） */
+        /* 使用DMA传输提高效率 */
+        HAL_SPI_Transmit(&hspi1, g_line_buf, 640, HAL_MAX_DELAY);
+        
+        TFT_CS_HIGH();
+        
+        /* 移动测试行位置 */
+        test_y++;
+        if (test_y >= 240) test_y = 0;
     }
     
-    /* 处理DMA全传输完成 - 显示后10行 */
+    /* 处理DMA全传输完成 - 后10行 (10-19) */
     if (flag_full_ready)
     {
         flag_full_ready = 0;
-        full_count++;
-        
-        /* DMA中断触发了，显示品红色表示正常 */
-        ST7789_Fill(COLOR_MAGENTA);
-        HAL_Delay(100);
-        /* 恢复原色，表示等待下一次中断 */
-        ST7789_Fill(COLOR_BLACK);
+        dma_irq_count++;
     }
     
-    HAL_Delay(10);  /* 10ms延时 */
+    /* 每秒检查一次DMA状态 */
+    if (HAL_GetTick() - last_check >= 1000)
+    {
+        last_check = HAL_GetTick();
+        
+        /* 如果DMA没有触发，显示蓝色 */
+        if (dma_irq_count == 0)
+        {
+            ST7789_Fill(COLOR_BLUE);
+            HAL_Delay(100);
+            ST7789_Fill(COLOR_BLACK);
+        }
+    }
+    /* USER CODE END 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -221,14 +180,9 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure the main internal regulator output voltage
-  */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -242,8 +196,6 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
@@ -259,7 +211,23 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* DMA中断回调 - 半传输完成 */
+void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
+{
+    if(hdma->Instance == DMA2_Stream1)
+    {
+        flag_half_ready = 1;
+    }
+}
 
+/* DMA中断回调 - 传输完成 */
+void HAL_DMA_TransferCpltCallback(DMA_HandleTypeDef *hdma)
+{
+    if(hdma->Instance == DMA2_Stream1)
+    {
+        flag_full_ready = 1;
+    }
+}
 
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
@@ -270,33 +238,13 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 }
 /* USER CODE END 4 */
 
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
+  while (1) {}
 }
+
 #ifdef USE_FULL_ASSERT
-/**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
 void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
-}
-#endif /* USE_FULL_ASSERT */
+{}
+#endif

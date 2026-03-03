@@ -104,7 +104,17 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
 
     /* ---- 屏幕方向：横屏，显示OV7670 320x240 ---- */
     ST7789_WriteCmd(ST7789_MADCTL);
-    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏，使用RGB格式（非BGR） */
+    /* 
+     * MADCTL设置：
+     * - MX: 列地址顺序镜像（横屏需要）
+     * - MV: 行/列交换（横屏需要）
+     * - BGR: 使用BGR颜色顺序（与OV7670的RGB565输出匹配时需要考虑字节顺序）
+     * 
+     * OV7670输出RGB565格式: RRRRRGGG GGGBBBBB (大端序)
+     * ST7789期望: 对于RGB565模式，数据按接收顺序解析
+     * 实际测试发现OV7670数据在ST7789上显示时需要BGR模式
+     */
+    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); /* 横屏 + BGR模式 */
 
     /* ---- 帧频控制 ---- */
     ST7789_WriteCmd(ST7789_PORCTRL);

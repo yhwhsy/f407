@@ -55,6 +55,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern DMA_HandleTypeDef hdma_dcmi;
 extern DCMI_HandleTypeDef hdcmi;
 extern DMA_HandleTypeDef hdma_spi1_tx;
 /* USER CODE BEGIN EV */
@@ -200,15 +201,14 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles DMA2 stream1 global interrupt (DCMI DMA).
+  * @brief This function handles DMA2 stream1 global interrupt.
   */
 void DMA2_Stream1_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream1_IRQn 0 */
 
   /* USER CODE END DMA2_Stream1_IRQn 0 */
-  extern DMA_HandleTypeDef hdma_dcmi_local;
-  HAL_DMA_IRQHandler(&hdma_dcmi_local);
+  HAL_DMA_IRQHandler(&hdma_dcmi);
   /* USER CODE BEGIN DMA2_Stream1_IRQn 1 */
 
   /* USER CODE END DMA2_Stream1_IRQn 1 */
@@ -244,26 +244,6 @@ void DCMI_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
-/* 来自 dcmi_capture.c 的外部变量 */
-extern volatile uint8_t flag_half_ready;
-extern volatile uint8_t flag_full_ready;
-
-/* DMA 半传输完成回调（前10行） */
-void HAL_DMA_HalfTransferCpltCallback(DMA_HandleTypeDef *hdma)
-{
-    if(hdma->Instance == DMA2_Stream1)
-    {
-        flag_half_ready = 1;
-    }
-}
-
-/* DMA 全传输完成回调（后10行） */
-void HAL_DMA_TransferCpltCallback(DMA_HandleTypeDef *hdma)
-{
-    if(hdma->Instance == DMA2_Stream1)
-    {
-        flag_full_ready = 1;
-    }
-}
+/* DMA回调已移至main.c，避免重复定义 */
 
 /* USER CODE END 1 */

@@ -33,7 +33,7 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "st7789.h"
 #include "ov7670.h"
-#include "dcmi_capture.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

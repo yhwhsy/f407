@@ -301,7 +301,16 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_EDGE,    0x06},
 
     /* HSYNC / VSYNC 极性 */
-    {REG_COM10,   0x00},   /* VSYNC低有效，HREF高有效，PCLK上升沿有效 */
+    /* 
+     * COM10寄存器位定义：
+     * Bit 0: PCLK极性 (0=正常/上升沿, 1=反向/下降沿)
+     * Bit 1: HREF极性 (0=高有效, 1=低有效) - DCMI HSPolarity=LOW 需要1
+     * Bit 6: VSYNC极性 (0=高有效, 1=低有效) - DCMI VSPolarity=LOW 需要1
+     * 
+     * 当前DCMI配置: VSPolarity=LOW, HSPolarity=LOW, PCKPolarity=RISING
+     * 需要COM10 = 0x42 (Bit6 + Bit1)
+     */
+    {REG_COM10,   0x42},   /* VSYNC低有效，HSYNC低有效，PCLK上升沿有效 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
