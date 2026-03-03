@@ -224,9 +224,9 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     /* 软件复位 */
     {REG_COM7,    COM7_RESET},
 
-    /* 时钟：XCLK=24MHz，内部PLL，PCLK=12MHz */
-    {REG_CLKRC,   0x01},   /* 预分频/1 */
-    {REG_DBLV,    0x0A},   /* PLL旁路，PCLK=XCLK/2 */
+    /* 时钟：XCLK=8MHz，不使用PLL倍频，PCLK=8MHz（OV7670支持最高24MHz PCLK） */
+    {REG_CLKRC,   0x00},   /* 预分频/1，使用直接时钟 */
+    {REG_DBLV,    0x0A},   /* 旁路PLL，使用内部稳压器 */
 
     /* 输出格式：RGB565，QVGA */
     {REG_COM7,    COM7_FMT_QVGA | COM7_RGB},
