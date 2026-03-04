@@ -20,7 +20,6 @@
 #include "main.h"
 #include "dcmi.h"
 #include "dma.h"
-#include "i2c.h"
 #include "spi.h"
 #include "gpio.h"
 
@@ -55,6 +54,7 @@ uint8_t g_line_buf[320 * 20 * 2];
 volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
 volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
 volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
+volatile uint16_t g_row = 0;           /* 当前屏幕写入行位置（全局变量，防撕裂保护用） */
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -93,7 +93,7 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_DCMI_Init();
-  MX_I2C1_Init();
+  /* 注意：OV7670使用软件I2C（SCCB），硬件I2C未使用 */
   MX_SPI1_Init();
   
   /* USER CODE BEGIN 2 */
@@ -128,7 +128,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   uint32_t last_check = HAL_GetTick();
   uint32_t last_irq_count = 0;
-  uint16_t g_row = 0;  /* 当前屏幕写入行位置 */
   
   while (1)
   {
@@ -237,7 +236,8 @@ void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
     UNUSED(hdcmi);
     flag_full_ready = 1;   /* 通知：后10行数据就绪 */
-    /* 注意：不能在这里归零g_row，因为此回调每20行触发一次，不是每帧一次 */
+    /* 防画面撕裂"安全带"：帧事件时重置行位置 */
+    g_row = 0;
 }
 
 /* SPI DMA传输完成回调 */
