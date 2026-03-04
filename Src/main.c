@@ -72,6 +72,13 @@ static void DCMI_HalfFrame_Callback(DMA_HandleTypeDef *hdma)
     flag_half_ready = 1;
 }
 
+/* DCMI DMA全传输完成回调 - 手动注册 */
+static void DCMI_FullFrame_Callback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    flag_full_ready = 1;
+}
+
 /* DCMI 错误回调 - 用于捕获同步错误或DMA错误 */
 void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
 {
@@ -147,8 +154,8 @@ int main(void)
   HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   
   /* 手动注册半传输回调 - HAL_DCMI_Start_DMA不会自动设置XferHalfCpltCallback */
-  /* 注意：XferCpltCallback由HAL内部使用，不能覆盖！ */
   hdcmi.DMA_Handle->XferHalfCpltCallback = DCMI_HalfFrame_Callback;
+  hdcmi.DMA_Handle->XferCpltCallback = DCMI_FullFrame_Callback;
   
   /* 显示绿色表示启动成功 */
   ST7789_Fill(COLOR_GREEN);
@@ -263,11 +270,10 @@ void SystemClock_Config(void)
  * - 帧中断：在单段DMA模式下每20行触发一次，不代表真正帧结束
  */
 
-/* DCMI帧完成回调 - 在单段DMA模式下每20行触发一次 */
+/* DCMI帧完成回调 - VSYNC触发，用于帧同步 */
 void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
 {
     UNUSED(hdcmi);
-    flag_full_ready = 1;   /* 通知：后10行数据就绪 */
     /* 防画面撕裂"安全带"：帧事件时重置行位置 */
     g_row = 0;
 }
