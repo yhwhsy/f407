@@ -71,6 +71,38 @@ static void DCMI_HalfFrame_Callback(DMA_HandleTypeDef *hdma)
     UNUSED(hdma);
     flag_half_ready = 1;
 }
+
+/* DCMI 错误回调 - 用于捕获同步错误或DMA错误 */
+void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
+{
+    UNUSED(hdcmi);
+    /* 错误处理：红色闪烁表示DCMI错误 */
+    static uint8_t err_cnt = 0;
+    err_cnt++;
+    
+    /* 短暂显示红色警告 */
+    ST7789_Fill(COLOR_RED);
+    HAL_Delay(200);
+    ST7789_Fill(COLOR_BLACK);
+    
+    /* 可选：自动重启DCMI */
+    /* HAL_DCMI_Stop(hdcmi); */
+    /* HAL_DCMI_Start_DMA(hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4); */
+}
+
+/* DMA 错误回调 - 处理DMA传输错误 */
+void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    /* DMA错误处理：蓝色闪烁表示DMA错误 */
+    static uint8_t dma_err_cnt = 0;
+    dma_err_cnt++;
+    
+    /* 短暂显示蓝色警告 */
+    ST7789_Fill(COLOR_BLUE);
+    HAL_Delay(300);
+    ST7789_Fill(COLOR_BLACK);
+}
 /* USER CODE END 0 */
 
 /**

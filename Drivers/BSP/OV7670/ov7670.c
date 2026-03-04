@@ -92,7 +92,7 @@ void SCCB_Stop(void)
 /**
  * @brief 发送一个字节
  * @param dat 要发送的数据
- * @return 0=成功收到ACK, 1=失败
+ * @return 0=成功 (SCCB协议第9位是Don't care，忽略ACK)
  */
 uint8_t SCCB_SendByte(uint8_t dat)
 {
@@ -110,16 +110,15 @@ uint8_t SCCB_SendByte(uint8_t dat)
         SCCB_Delay();
     }
     
-    /* 读取ACK */
+    /* === 修改这里：忽略 ACK 位 (第9位 Don't care) === */
     SCCB_SDA_H();  /* 释放SDA */
     SCCB_Delay();
-    SCCB_SCL_H();
+    SCCB_SCL_H();  /* 产生第9个时钟脉冲 */
     SCCB_Delay();
-    uint8_t ack = SCCB_SDA_READ();
     SCCB_SCL_L();
     SCCB_Delay();
     
-    return ack;  /* 0=ACK, 1=NACK */
+    return 0;  /* 强行认为发送成功，不由于无ACK而中断初始化 */
 }
 
 /**

@@ -221,23 +221,25 @@ void ST7789_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 }
 
 /**
- * @brief 全屏填充单色
+ * @brief 全屏填充单色（优化版：使用行缓冲区，仅240次HAL调用）
  */
 void ST7789_Fill(uint16_t color)
 {
-    uint8_t hi = color >> 8;
-    uint8_t lo = color & 0xFF;
+    uint8_t line_buf[640];  /* 320像素 × 2字节 = 640字节 */
+    
+    /* 预填充一行数据 */
+    for (int i = 0; i < 320; i++) {
+        line_buf[i*2]   = color >> 8;
+        line_buf[i*2+1] = color & 0xFF;
+    }
 
     ST7789_SetWindow(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-
     TFT_DC_HIGH();
     TFT_CS_LOW();
 
-    /* 320x240 = 76800 像素，每像素2字节 */
-    for (uint32_t i = 0; i < (uint32_t)ST7789_WIDTH * ST7789_HEIGHT; i++)
-    {
-        HAL_SPI_Transmit(g_hspi, &hi, 1, HAL_MAX_DELAY);
-        HAL_SPI_Transmit(g_hspi, &lo, 1, HAL_MAX_DELAY);
+    /* 240行，每行640字节，只需240次HAL调用 */
+    for (int row = 0; row < ST7789_HEIGHT; row++) {
+        HAL_SPI_Transmit(g_hspi, line_buf, 640, HAL_MAX_DELAY);
     }
 
     TFT_CS_HIGH();
