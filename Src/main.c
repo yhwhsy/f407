@@ -186,14 +186,19 @@ int main(void)
         flag_half_ready = 0;
         dma_irq_count++;
         
-        ST7789_SetWindow(0, g_row, 319, g_row + 9);
+        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
+        uint16_t current_row;
+        __disable_irq();
+        current_row = g_row;
+        g_row += 10;
+        if (g_row >= 240) g_row = 0;
+        __enable_irq();
+        
+        ST7789_SetWindow(0, current_row, 319, current_row + 9);
         TFT_DC_HIGH();
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
-        
-        g_row += 10;
-        if (g_row >= 240) g_row = 0;  /* 写满240行自动循环，不依赖帧中断 */
     }
     
     /* 处理DMA全传输完成 - 发送后10行 */
@@ -202,14 +207,19 @@ int main(void)
         flag_full_ready = 0;
         dma_irq_count++;
         
-        ST7789_SetWindow(0, g_row, 319, g_row + 9);
+        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
+        uint16_t current_row;
+        __disable_irq();
+        current_row = g_row;
+        g_row += 10;
+        if (g_row >= 240) g_row = 0;
+        __enable_irq();
+        
+        ST7789_SetWindow(0, current_row, 319, current_row + 9);
         TFT_DC_HIGH();
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
-        
-        g_row += 10;
-        if (g_row >= 240) g_row = 0;  /* 写满240行自动循环 */
     }
     
     /* 每秒检查一次DMA状态 - 持续心跳监测 */
