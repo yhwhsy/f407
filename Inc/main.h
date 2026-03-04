@@ -40,7 +40,6 @@ extern "C" {
 /* USER CODE BEGIN ET */
 extern DCMI_HandleTypeDef  hdcmi;
 extern DMA_HandleTypeDef   hdma_dcmi;
-extern I2C_HandleTypeDef   hi2c1;
 extern SPI_HandleTypeDef   hspi1;
 extern DMA_HandleTypeDef   hdma_spi1_tx;
 /* USER CODE END ET */
