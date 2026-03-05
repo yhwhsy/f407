@@ -114,7 +114,7 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
      * ST7789期望: 对于RGB565模式，数据按接收顺序解析
      * 实际测试发现OV7670数据在ST7789上显示时需要BGR模式
      */
-    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); /* 横屏 + BGR模式 */
+    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏 + BGR模式 */
 
     /* ---- 帧频控制 ---- */
     ST7789_WriteCmd(ST7789_PORCTRL);
@@ -339,9 +339,9 @@ void ST7789_SetRotation(uint8_t rotation)
     switch (rotation)
     {
         case 0: ST7789_WriteData8(ST7789_MADCTL_BGR); break;                           /* 竖屏 */
-        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); break; /* 横屏 */
-        case 2: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MY | ST7789_MADCTL_BGR); break; /* 竖屏翻转 */
-        case 3: ST7789_WriteData8(ST7789_MADCTL_MY | ST7789_MADCTL_MV | ST7789_MADCTL_BGR); break; /* 横屏翻转 */
+        case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); break; /* 横屏 */
+        case 2: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MY); break; /* 竖屏翻转 */
+        case 3: ST7789_WriteData8(ST7789_MADCTL_MY | ST7789_MADCTL_MV); break; /* 横屏翻转 */
         default: break;
     }
 }
