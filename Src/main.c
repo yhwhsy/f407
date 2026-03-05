@@ -21,12 +21,14 @@
 #include "dcmi.h"
 #include "dma.h"
 #include "spi.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ov7670.h"
 #include "st7789.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -142,6 +144,7 @@ int main(void)
   MX_DMA_Init();
   MX_DCMI_Init();
   MX_SPI1_Init();
+  MX_USART3_Init();
   /* USER CODE BEGIN 2 */
   /* 初始化TFT */
   ST7789_Init(&hspi1);
@@ -238,10 +241,10 @@ int main(void)
         }
         last_irq_count = dma_irq_count;
     }
-    /* USER CODE END 3 */
   }
-}
+  /* USER CODE END 3 */
   
+}
 /**
   * @brief System Clock Configuration
   * @retval None
