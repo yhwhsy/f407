@@ -150,6 +150,8 @@ int main(void)
 
   /* 初始化OV7670 */
   uint8_t ov_ret = OV7670_Init();
+  uint8_t check_val = 0;
+  OV7670_ReadReg(REG_COM7, &check_val);
   if (ov_ret != 0)
   {
       ST7789_Fill(COLOR_RED);  /* 失败 */

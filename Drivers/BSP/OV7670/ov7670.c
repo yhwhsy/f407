@@ -303,16 +303,19 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
     /* HSYNC / VSYNC 极性 */
     /* 
-     * COM10寄存器位定义：
-     * Bit 1: HREF取反 (1=低有效) - DCMI HSPolarity=LOW，需要bit1=1
-     * Bit 6: VSYNC取反 (1=取反)  - DCMI VSPolarity=LOW，OV7670默认帧有效期
-     *        已经是LOW，不需要取反，bit6=0
+     * COM10寄存器位定义（数据手册）：
+     * Bit 0: HSYNC反相
+     * Bit 1: VSYNC负有效 (1=低电平有效)
+     * Bit 3: HREF反相 (1=低电平有效)
      * 
-     * OV7670默认：帧有效期VSYNC=LOW，与DCMI VSPolarity=LOW匹配，无需取反
-     * HREF需要取反以匹配DCMI HSPolarity=LOW
-     * COM10 = 0x02 (仅bit1)
+     * DCMI配置：VSPolarity=LOW, HSPolarity=LOW
+     * 需要：VSYNC低有效 + HREF低有效
+     * 
+     * 0x0A = 0x08 | 0x02 = Bit3 | Bit1
+     * - Bit3=1: HREF反相 → 低电平有效
+     * - Bit1=1: VSYNC负有效 → 低电平有效
      */
-    {REG_COM10,   0x02},   /* HREF低有效，VSYNC保持默认（帧有效期=LOW），PCLK上升沿 */
+    {REG_COM10,   0x02},   /* HREF低有效，VSYNC低有效 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
@@ -330,7 +333,6 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
     /* COM11：60Hz灯光频率消除 */
     {REG_COM11,   0x00},
-
     /* 结束标记 */
     {0xFF,        0xFF}
 };
