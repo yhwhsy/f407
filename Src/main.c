@@ -20,13 +20,15 @@
 #include "main.h"
 #include "dcmi.h"
 #include "dma.h"
-#include "i2c.h"
 #include "spi.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "dcmi_capture.h"
+#include "ov7670.h"
+#include "st7789.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +49,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+/* 行缓冲区 - 20行 x 320像素 x 2字节 */
+__attribute__((aligned(4)))
+uint8_t g_line_buf[320 * 20 * 2];
 
+volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
+volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
+volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
+volatile uint16_t g_row = 0;           /* 当前屏幕写入行位置（全局变量，防撕裂保护用） */
+uint8_t rx_buffer[100];         // 串口接收缓冲区
+volatile uint8_t esp_ok_flag = 0; // 成功收到OK的标志位
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -58,7 +69,80 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* DCMI DMA半传输完成回调 - 手动注册，HAL_DCMI_Start_DMA不会自动设置 */
+static void DCMI_HalfFrame_Callback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    flag_half_ready = 1;
+}
 
+/* DCMI DMA全传输完成回调 - 手动注册 */
+static void DCMI_FullFrame_Callback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    flag_full_ready = 1;
+}
+
+/* DCMI 错误回调 - 用于捕获同步错误或DMA错误 */
+void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
+{
+    UNUSED(hdcmi);
+    /* 错误处理：红色闪烁表示DCMI错误 */
+    static uint8_t err_cnt = 0;
+    err_cnt++;
+    
+    /* 短暂显示红色警告 */
+    ST7789_Fill(COLOR_RED);
+    HAL_Delay(200);
+    ST7789_Fill(COLOR_BLACK);
+    
+    /* 可选：自动重启DCMI */
+    /* HAL_DCMI_Stop(hdcmi); */
+    /* HAL_DCMI_Start_DMA(hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4); */
+}
+
+/* DMA 错误回调 - 处理DMA传输错误 */
+void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
+{
+    UNUSED(hdma);
+    /* DMA错误处理：蓝色闪烁表示DMA错误 */
+    static uint8_t dma_err_cnt = 0;
+    dma_err_cnt++;
+    
+    /* 短暂显示蓝色警告 */
+    ST7789_Fill(COLOR_BLUE);
+    HAL_Delay(300);
+    ST7789_Fill(COLOR_BLACK);
+}
+
+// AT指令发送封装函数
+// cmd: 要发送的指令
+// ack: 期待的回复内容 (比如 "OK")
+// timeout: 超时时间(毫秒)
+uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
+{
+    // 清空接收缓冲区
+    memset(rx_buffer, 0, sizeof(rx_buffer));
+    
+    // 启动中断接收
+    HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
+    
+    // 发送指令
+    HAL_UART_Transmit(&huart3, (uint8_t*)cmd, strlen(cmd), 1000);
+    
+    // 等待回复
+    uint32_t start_time = HAL_GetTick();
+    while((HAL_GetTick() - start_time) < timeout)
+    {
+        // 如果接收缓冲区里找到了期待的字符串
+        if(strstr((char*)rx_buffer, ack) != NULL)
+        {
+            return 1; // 成功
+        }
+        HAL_Delay(10); // 稍微延时，防止死循环占满CPU
+    }
+    return 0; // 超时失败
+}
 /* USER CODE END 0 */
 
 /**
@@ -69,7 +153,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -85,74 +168,147 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_DCMI_Init();
-  MX_I2C1_Init();
   MX_SPI1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-/* MCO1已在SystemClock_Config中配置，此处无需重复 */
-HAL_Delay(10);
+  /* 初始化TFT */
+  ST7789_Init(&hspi1);
+  ST7789_SetRotation(1);
+  ST7789_Fill(COLOR_BLACK);
+  /* 初始化OV7670 */
+  uint8_t ov_ret = OV7670_Init();
+  if (ov_ret != 0)
+  {
+      ST7789_Fill(COLOR_RED);  /* 失败 */
+      while(1);
+  }
 
-/* 初始化TFT */
-ST7789_Init(&hspi1);
-ST7789_SetRotation(1);
-ST7789_Fill(COLOR_BLACK);
 
-/* 调试OV7670摄像头 */
-// 先显示黄色表示开始检测
-ST7789_Fill(COLOR_YELLOW);
-HAL_Delay(200);
+  // 1. 开启串口空闲中断接收
+  HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
+  
+//   HAL_Delay(500); // 留点时间给 ESP8266 上电稳定
+  
+//   // 2. 发送 AT 指令
+//   char *at_cmd = "AT\r\n";
+//   HAL_UART_Transmit(&huart3, (uint8_t*)at_cmd, strlen(at_cmd), 1000);
 
-// 检查I2C总线状态
-HAL_StatusTypeDef i2c_status = HAL_I2C_IsDeviceReady(&hi2c1, OV7670_SCCB_ADDR, 3, 100);
-if (i2c_status != HAL_OK)
-{
-    // I2C设备未响应，显示红色
-    ST7789_Fill(COLOR_RED);
-    // 在主循环中显示错误码
-}
+//     ST7789_Fill(COLOR_BLUE); // 蓝屏：正在复位模块
+//   ESP8266_SendCmd("AT+RST\r\n", "ready", 3000); // 软复位，等待ready
+//   HAL_Delay(1000); // 刚复位完模块需要喘口气
+  
+//   // 3. 设置为 STA 模式 (连接路由器的模式)
+//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在配置模式
+//   if(!ESP8266_SendCmd("AT+CWMODE=3\r\n", "OK", 2000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 失败死机，亮红屏
+//   }
 
-// 尝试读取OV7670芯片ID
-uint8_t pid = 0, ver = 0;
-OV7670_ReadReg(0x0A, &pid);
-OV7670_ReadReg(0x0B, &ver);
+//   // 4. 连接手机热点 (⚠️修改这里的热点名字和密码)
+//   // 注意：热点名字和密码必须被双引号包围，所以在C语言里要用 \" 转义
+//   ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连Wi-Fi，这步可能需要几秒钟
+//   if(!ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 密码错或连不上，亮红屏
+//   }
 
-// 在屏幕上用颜色显示结果
-if (pid == 0x76)
-{
-    // PID正确，显示绿色闪烁
-    ST7789_Fill(COLOR_GREEN);
-    HAL_Delay(200);
-    ST7789_Fill(COLOR_BLACK);
-    HAL_Delay(200);
-    ST7789_Fill(COLOR_GREEN);
-}
-else
-{
-    // PID错误，显示紫色（红+蓝）
-    ST7789_Fill(COLOR_MAGENTA);
-}
-HAL_Delay(1000);
+//   // 测试：单片机能不能在局域网里找到电脑？
+
+//   // 5. 连接电脑端的 TCP Server (⚠️修改这里的IP地址为电脑的IP，端口8080)
+//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在连电脑TCP Server
+//   if(!ESP8266_SendCmd("AT+CIPSTART=\"TCP\",\"192.168.120.77\",8080\r\n", "CONNECT", 10000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 连不上电脑，亮红屏
+//   }
+
+//   // 6. 开启透传模式并开始发送
+//   ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
+//   ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000); // 收到 > 符号代表可以随便发数据了
+  
+//   // 7. 大功告成，发一句测试消息给电脑！
+//   ST7789_Fill(COLOR_GREEN); // 绿屏：全部连接成功！
+//   char *hello_msg = "Hello! ESP8266 & STM32 is online!\r\n";
+//   HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
+
+  /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
+  /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
+ // HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
+  
+  /* 手动注册半传输回调 - HAL_DCMI_Start_DMA不会自动设置XferHalfCpltCallback */
+  hdcmi.DMA_Handle->XferHalfCpltCallback = DCMI_HalfFrame_Callback;
+  hdcmi.DMA_Handle->XferCpltCallback = DCMI_FullFrame_Callback;
+  HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  uint32_t last_check = HAL_GetTick();
+  uint32_t last_irq_count = 0;
   
-  /* 停止在这里，专注调试摄像头 */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    /* 处理DMA半传输完成 - 发送前10行 */
+    if (flag_half_ready)
+    {
+        flag_half_ready = 0;
+        dma_irq_count++;
+        
+        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
+        uint16_t current_row;
+        __disable_irq();
+        current_row = g_row;
+        g_row += 10;
+        if (g_row >= 240) g_row = 0;
+        __enable_irq();
+        
+        ST7789_SetWindow(0, current_row, 319, current_row + 9);
+        TFT_DC_HIGH();
+        TFT_CS_LOW();
+        HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
+        TFT_CS_HIGH();
+    }
     
-    // 空循环，保持屏幕显示调试结果
-    HAL_Delay(100);
+    /* 处理DMA全传输完成 - 发送后10行 */
+    if (flag_full_ready)
+    {
+        flag_full_ready = 0;
+        dma_irq_count++;
+        
+        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
+        uint16_t current_row;
+        __disable_irq();
+        current_row = g_row;
+        g_row += 10;
+        if (g_row >= 240) g_row = 0;
+        __enable_irq();
+        
+        ST7789_SetWindow(0, current_row, 319, current_row + 9);
+        TFT_DC_HIGH();
+        TFT_CS_LOW();
+        HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
+        TFT_CS_HIGH();
+    }
     
+    /* 每秒检查一次DMA状态 - 持续心跳监测 */
+    if (HAL_GetTick() - last_check >= 1000)
+    {
+        last_check = HAL_GetTick();
+        
+        /* 如果DMA中断计数没有增加，显示蓝色警告 */
+        if (dma_irq_count == last_irq_count)
+        {
+            ST7789_Fill(COLOR_BLUE);
+            HAL_Delay(100);
+            ST7789_Fill(COLOR_BLACK);
+        }
+        last_irq_count = dma_irq_count;
+    }
   }
   /* USER CODE END 3 */
 }
@@ -204,13 +360,49 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* 
+ * 回调机制说明：
+ * - 半传输：XferHalfCpltCallback = DCMI_HalfFrame_Callback（手动注册）
+ * - 全传输：由HAL内部DCMI_DMAXferCplt处理，最终触发帧中断
+ * - 帧中断：在单段DMA模式下每20行触发一次，不代表真正帧结束
+ */
 
+/* DCMI帧完成回调 - VSYNC触发，用于帧同步 */
+void HAL_DCMI_FrameEventCallback(DCMI_HandleTypeDef *hdcmi)
+{
+    UNUSED(hdcmi);
+    /* 防画面撕裂"安全带"：帧事件时重置行位置 */
+    g_row = 0;
+}
 
+/* SPI DMA传输完成回调 */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI1)
     {
         ST7789_DMA_TxCpltCallback();
+    }
+}
+
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+    if (huart->Instance == USART3)
+    {
+        // 给字符串末尾加上结束符，防止越界
+        if (Size < sizeof(rx_buffer)) {
+            rx_buffer[Size] = '\0'; 
+        } else {
+            rx_buffer[sizeof(rx_buffer)-1] = '\0';
+        }
+        
+        // 检查 ESP8266 的回复中是否包含 "OK"
+        if (strstr((char*)rx_buffer, "OK") != NULL)
+        {
+            esp_ok_flag = 1; // 成功标志置1
+        }
+        
+        // 重新开启中断接收，等待下一次数据
+        HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
     }
 }
 /* USER CODE END 4 */

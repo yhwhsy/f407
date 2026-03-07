@@ -7,7 +7,6 @@ srcDirs:
   - Startup
   - Src
   - Drivers
-  - Middlewares
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -31,9 +30,12 @@ targets:
         - Drivers/CMSIS/Include
         - Drivers/BSP/ST7789
         - Drivers/BSP/OV7670
+        - Drivers/BSP/ESP8266
+        - Drivers/BSP/SENSOR
         - Middlewares/DMA
       libList: []
-    excludeList: []
+    excludeList:
+      - Src/main_test.c
     toolchain: GCC
     toolchainConfigMap:
       GCC:
@@ -105,6 +107,10 @@ targets:
         - Drivers/STM32F4xx_HAL_Driver/Inc/Legacy
         - Drivers/CMSIS/Device/ST/STM32F4xx/Include
         - Drivers/CMSIS/Include
+        - Drivers/BSP/ST7789
+        - Drivers/BSP/OV7670
+        - Drivers/BSP/ESP8266
+        - Drivers/BSP/SENSOR
       libList: []
     excludeList: []
     toolchain: GCC

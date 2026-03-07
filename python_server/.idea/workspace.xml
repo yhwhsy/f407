@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="9c8bbc1f-3b66-4f95-bc6a-73b163b38965" name="变更" comment="">
+      <change beforePath="$PROJECT_DIR$/../.eide/eide.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../.eide/eide.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Drivers/BSP/ESP8266/esp8266.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Drivers/BSP/ESP8266/esp8266.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Drivers/BSP/ST7789/st7789.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Drivers/BSP/ST7789/st7789.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Drivers/BSP/ST7789/st7789.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Drivers/BSP/ST7789/st7789.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Inc/adc.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Inc/adc.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Inc/main.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Inc/main.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Inc/stm32f4xx_hal_conf.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Inc/stm32f4xx_hal_conf.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Inc/usart.h" beforeDir="false" afterPath="$PROJECT_DIR$/../Inc/usart.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Src/adc.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Src/adc.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Src/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Src/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Src/stm32f4xx_it.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Src/stm32f4xx_it.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Src/usart.c" beforeDir="false" afterPath="$PROJECT_DIR$/../Src/usart.c" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+  </component>
+  <component name="ProjectId" id="3ASo4DQVCjqKKSz1uZGPayg3XHD" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "last_opened_file_path": "D:/STM32/Project/f407/python_server",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "项目",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "preferences.packagesearch.PackageSearchGeneralConfigurable",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="9c8bbc1f-3b66-4f95-bc6a-73b163b38965" name="变更" comment="" />
+      <created>1772595139059</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1772595139059</updated>
+      <workItem from="1772595140345" duration="1092000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="XSLT-Support.FileAssociations.UIState">
+    <expand />
+    <select />
+  </component>
+</project>

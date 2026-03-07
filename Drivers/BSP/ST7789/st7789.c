@@ -104,7 +104,17 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
 
     /* ---- 屏幕方向：横屏，显示OV7670 320x240 ---- */
     ST7789_WriteCmd(ST7789_MADCTL);
-    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏，使用RGB格式（非BGR） */
+    /* 
+     * MADCTL设置：
+     * - MX: 列地址顺序镜像（横屏需要）
+     * - MV: 行/列交换（横屏需要）
+     * - BGR: 使用BGR颜色顺序（与OV7670的RGB565输出匹配时需要考虑字节顺序）
+     * 
+     * OV7670输出RGB565格式: RRRRRGGG GGGBBBBB (大端序)
+     * ST7789期望: 对于RGB565模式，数据按接收顺序解析
+     * 实际测试发现OV7670数据在ST7789上显示时需要BGR模式
+     */
+    ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏 + BGR模式 */
 
     /* ---- 帧频控制 ---- */
     ST7789_WriteCmd(ST7789_PORCTRL);
@@ -211,23 +221,25 @@ void ST7789_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 }
 
 /**
- * @brief 全屏填充单色
+ * @brief 全屏填充单色（优化版：使用行缓冲区，仅240次HAL调用）
  */
 void ST7789_Fill(uint16_t color)
 {
-    uint8_t hi = color >> 8;
-    uint8_t lo = color & 0xFF;
+    uint8_t line_buf[640];  /* 320像素 × 2字节 = 640字节 */
+    
+    /* 预填充一行数据 */
+    for (int i = 0; i < 320; i++) {
+        line_buf[i*2]   = color >> 8;
+        line_buf[i*2+1] = color & 0xFF;
+    }
 
     ST7789_SetWindow(0, 0, ST7789_WIDTH - 1, ST7789_HEIGHT - 1);
-
     TFT_DC_HIGH();
     TFT_CS_LOW();
 
-    /* 320x240 = 76800 像素，每像素2字节 */
-    for (uint32_t i = 0; i < (uint32_t)ST7789_WIDTH * ST7789_HEIGHT; i++)
-    {
-        HAL_SPI_Transmit(g_hspi, &hi, 1, HAL_MAX_DELAY);
-        HAL_SPI_Transmit(g_hspi, &lo, 1, HAL_MAX_DELAY);
+    /* 240行，每行640字节，只需240次HAL调用 */
+    for (int row = 0; row < ST7789_HEIGHT; row++) {
+        HAL_SPI_Transmit(g_hspi, line_buf, 640, HAL_MAX_DELAY);
     }
 
     TFT_CS_HIGH();
@@ -326,7 +338,7 @@ void ST7789_SetRotation(uint8_t rotation)
     ST7789_WriteCmd(ST7789_MADCTL);
     switch (rotation)
     {
-        case 0: ST7789_WriteData8(0x00); break;                           /* 竖屏 */
+        case 0: ST7789_WriteData8(ST7789_MADCTL_BGR); break;                           /* 竖屏 */
         case 1: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); break; /* 横屏 */
         case 2: ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MY); break; /* 竖屏翻转 */
         case 3: ST7789_WriteData8(ST7789_MADCTL_MY | ST7789_MADCTL_MV); break; /* 横屏翻转 */

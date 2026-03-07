@@ -11,7 +11,7 @@
  * ============================================================ */
 
 /* ---------- OV7670 SCCB 地址 ---------- */
-#define OV7670_SCCB_ADDR    0x42  /* 写地址 (8bit，HAL会自动处理方向位) */
+#define OV7670_SCCB_ADDR    0x42  /* 写地址 (8bit，包含读写方向位) */
 #define OV7670_SCCB_ADDR_7  0x21  /* 7bit地址 */
 
 /* ---------- GPIO 控制引脚 ---------- */
@@ -101,10 +101,9 @@
 #define REG_AWBC4       0x46
 #define REG_AWBC5       0x47
 #define REG_AWBC6       0x48
-#define REG_AWBCTR3     0x4C
-#define REG_AWBCTR2     0x4D
-#define REG_AWBCTR1     0x4E
-#define REG_AWBCTR0     0x4F
+#define REG_AWBCTR3     0x4C  /* AWB Control 3 */
+#define REG_AWBCTR2     0x4D  /* AWB Control 2 */
+/* 注意：0x4E-0x4F是颜色矩阵MTX1/MTX2，不是AWB控制寄存器 */
 #define REG_GGAIN       0x6A  /* G通道AWB增益 */
 #define REG_DBLV        0x6B  /* PLL控制 */
 #define REG_REG76       0x76  /* OV保留 */
@@ -134,8 +133,11 @@
 #define COM15_RGB565    0x10  /* RGB565输出 */
 #define COM15_RGB555    0x30  /* RGB555输出 */
 
+/* ---------- 软件I2C函数声明 ---------- */
+void    SCCB_Init(void);
+
 /* ---------- 函数声明 ---------- */
-uint8_t OV7670_Init(I2C_HandleTypeDef *hi2c);
+uint8_t OV7670_Init(void);
 uint8_t OV7670_ReadReg(uint8_t reg, uint8_t *val);
 uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val);
 uint8_t OV7670_CheckID(void);

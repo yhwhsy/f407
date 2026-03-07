@@ -33,14 +33,13 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "st7789.h"
 #include "ov7670.h"
-#include "dcmi_capture.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 extern DCMI_HandleTypeDef  hdcmi;
 extern DMA_HandleTypeDef   hdma_dcmi;
-extern I2C_HandleTypeDef   hi2c1;
 extern SPI_HandleTypeDef   hspi1;
 extern DMA_HandleTypeDef   hdma_spi1_tx;
 /* USER CODE END ET */

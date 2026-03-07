@@ -2,14 +2,163 @@
  ******************************************************************************
  * @file    ov7670.c
  * @brief   OV7670 摄像头驱动实现
- *          使用I2C1（SCCB协议）配置寄存器
+ *          使用软件I2C（GPIO模拟SCCB协议）
  *          输出格式：RGB565，分辨率：QVGA (320x240)
  ******************************************************************************
  */
 
 #include "ov7670.h"
 
-static I2C_HandleTypeDef *g_hi2c = NULL;
+/* 软件I2C引脚定义 */
+#define SCCB_SCL_PIN    GPIO_PIN_8
+#define SCCB_SDA_PIN    GPIO_PIN_9
+#define SCCB_GPIO_PORT  GPIOB
+
+/* 延时函数（微秒级） */
+static void SCCB_Delay(void)
+{
+    for(volatile int i = 0; i < 20; i++);  /* 约5-10us @168MHz */
+}
+
+/* SCL控制 */
+#define SCCB_SCL_H()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SCL_PIN, GPIO_PIN_SET)
+#define SCCB_SCL_L()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SCL_PIN, GPIO_PIN_RESET)
+
+/* SDA控制 */
+#define SCCB_SDA_H()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SDA_PIN, GPIO_PIN_SET)
+#define SCCB_SDA_L()    HAL_GPIO_WritePin(SCCB_GPIO_PORT, SCCB_SDA_PIN, GPIO_PIN_RESET)
+#define SCCB_SDA_READ() HAL_GPIO_ReadPin(SCCB_GPIO_PORT, SCCB_SDA_PIN)
+
+/* ============================================================
+ *  软件I2C底层函数
+ * ============================================================ */
+
+/**
+ * @brief 初始化软件I2C GPIO
+ */
+void SCCB_Init(void)
+{
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+    __HAL_RCC_GPIOD_CLK_ENABLE();  /* PWDN引脚使用GPIOD */
+    __HAL_RCC_GPIOE_CLK_ENABLE();  /* RESET引脚使用GPIOE */
+    
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    
+    /* SCL - 推挽输出 */
+    GPIO_InitStruct.Pin = SCCB_SCL_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(SCCB_GPIO_PORT, &GPIO_InitStruct);
+    
+    /* SDA - 开漏输出（双向） */
+    GPIO_InitStruct.Pin = SCCB_SDA_PIN;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(SCCB_GPIO_PORT, &GPIO_InitStruct);
+    
+    /* 初始状态：SCL=H, SDA=H */
+    SCCB_SCL_H();
+    SCCB_SDA_H();
+    SCCB_Delay();
+}
+
+/**
+ * @brief I2C起始信号
+ */
+void SCCB_Start(void)
+{
+    SCCB_SDA_H();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SDA_L();
+    SCCB_Delay();
+    SCCB_SCL_L();
+    SCCB_Delay();
+}
+
+/**
+ * @brief I2C停止信号
+ */
+void SCCB_Stop(void)
+{
+    SCCB_SDA_L();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SDA_H();
+    SCCB_Delay();
+}
+
+/**
+ * @brief 发送一个字节
+ * @param dat 要发送的数据
+ * @return 0=成功 (SCCB协议第9位是Don't care，忽略ACK)
+ */
+uint8_t SCCB_SendByte(uint8_t dat)
+{
+    for(uint8_t i = 0; i < 8; i++)
+    {
+        if(dat & 0x80)
+            SCCB_SDA_H();
+        else
+            SCCB_SDA_L();
+        dat <<= 1;
+        SCCB_Delay();
+        SCCB_SCL_H();
+        SCCB_Delay();
+        SCCB_SCL_L();
+        SCCB_Delay();
+    }
+    
+    /* === 修改这里：忽略 ACK 位 (第9位 Don't care) === */
+    SCCB_SDA_H();  /* 释放SDA */
+    SCCB_Delay();
+    SCCB_SCL_H();  /* 产生第9个时钟脉冲 */
+    SCCB_Delay();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    
+    return 0;  /* 强行认为发送成功，不由于无ACK而中断初始化 */
+}
+
+/**
+ * @brief 接收一个字节
+ * @param ack 发送的应答 0=ACK, 1=NACK
+ * @return 接收到的数据
+ */
+uint8_t SCCB_ReceiveByte(uint8_t ack)
+{
+    uint8_t dat = 0;
+    
+    SCCB_SDA_H();  /* 释放SDA */
+    
+    for(uint8_t i = 0; i < 8; i++)
+    {
+        dat <<= 1;
+        SCCB_SCL_H();
+        SCCB_Delay();
+        if(SCCB_SDA_READ())
+            dat |= 0x01;
+        SCCB_SCL_L();
+        SCCB_Delay();
+    }
+    
+    /* 发送ACK/NACK */
+    if(ack)
+        SCCB_SDA_H();
+    else
+        SCCB_SDA_L();
+    SCCB_Delay();
+    SCCB_SCL_H();
+    SCCB_Delay();
+    SCCB_SCL_L();
+    SCCB_Delay();
+    SCCB_SDA_H();
+    
+    return dat;
+}
 
 /* ============================================================
  *  SCCB (I2C) 寄存器读写
@@ -23,11 +172,16 @@ static I2C_HandleTypeDef *g_hi2c = NULL;
  */
 uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val)
 {
-    uint8_t buf[2] = {reg, val};
-    HAL_StatusTypeDef ret;
-    ret = HAL_I2C_Master_Transmit(g_hi2c, OV7670_SCCB_ADDR, buf, 2, 100);
+    uint8_t ret = 0;
+    
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR)) ret = 1;  /* 写地址 */
+    if(SCCB_SendByte(reg)) ret = 1;               /* 寄存器地址 */
+    if(SCCB_SendByte(val)) ret = 1;               /* 数据 */
+    SCCB_Stop();
+    
     HAL_Delay(1);  /* SCCB需要稳定时间 */
-    return (ret == HAL_OK) ? 0 : 1;
+    return ret;
 }
 
 /**
@@ -38,13 +192,23 @@ uint8_t OV7670_WriteReg(uint8_t reg, uint8_t val)
  */
 uint8_t OV7670_ReadReg(uint8_t reg, uint8_t *val)
 {
-    HAL_StatusTypeDef ret;
-    /* SCCB读取：先发寄存器地址，再读数据 */
-    ret = HAL_I2C_Master_Transmit(g_hi2c, OV7670_SCCB_ADDR, &reg, 1, 100);
-    if (ret != HAL_OK) return 1;
+    uint8_t ret = 0;
+    
+    /* 阶段1：写寄存器地址 */
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR)) ret = 1;
+    if(SCCB_SendByte(reg)) ret = 1;
+    SCCB_Stop();
+    
     HAL_Delay(1);
-    ret = HAL_I2C_Master_Receive(g_hi2c, OV7670_SCCB_ADDR | 0x01, val, 1, 100);
-    return (ret == HAL_OK) ? 0 : 1;
+    
+    /* 阶段2：读数据 */
+    SCCB_Start();
+    if(SCCB_SendByte(OV7670_SCCB_ADDR | 0x01)) ret = 1;  /* 读地址 */
+    *val = SCCB_ReceiveByte(1);  /* 接收并发送NACK */
+    SCCB_Stop();
+    
+    return ret;
 }
 
 /* ============================================================
@@ -61,9 +225,9 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     /* 软件复位 */
     {REG_COM7,    COM7_RESET},
 
-    /* 时钟：XCLK=24MHz，内部PLL，PCLK=12MHz */
-    {REG_CLKRC,   0x01},   /* 预分频/1 */
-    {REG_DBLV,    0x0A},   /* PLL旁路，PCLK=XCLK/2 */
+    /* 时钟：XCLK=8MHz，不使用PLL倍频，PCLK=8MHz（OV7670支持最高24MHz PCLK） */
+    {REG_CLKRC,   0x00},   /* 预分频/1，使用直接时钟 */
+    {REG_DBLV,    0x0A},   /* 旁路PLL，使用内部稳压器 */
 
     /* 输出格式：RGB565，QVGA */
     {REG_COM7,    COM7_FMT_QVGA | COM7_RGB},
@@ -80,12 +244,12 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
     /* 缩放控制（QVGA = VGA/2）*/
     {REG_COM3,    0x04},   /* 使能缩放 */
-    {REG_COM14,   0x19},   /* 手动缩放，PCLK分频 */
+    {REG_COM14,   0x18},   /* 手动缩放使能+DCW使能，PCLK不分频(bit[2:0]=000) */
     {REG_SCALING_XSC,      0x3A},
     {REG_SCALING_YSC,      0x35},
     {REG_SCALING_DCWCTR,   0x11},   /* 水平/垂直各降采样2倍 */
     {REG_SCALING_PC,       0xF1},   /* PCLK分频 */
-    {REG_SCALING_PCLK_DIV, 0x02},
+    {REG_SCALING_PCLK_DIV, 0x00},   /* 不额外分频 */
 
     /* AEC/AGC控制 */
     {REG_COM8,    0xE5},   /* 使能AGC, AEC, AWB */
@@ -96,11 +260,11 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_AEB,     0x63},   /* AEC下界 */
     {REG_VPT,     0xD4},   /* 快速AEC操作区 */
 
-    /* AWB控制 */
-    {REG_AWBCTR0, 0xAA},
-    {REG_AWBCTR1, 0x11},
-    {REG_AWBCTR2, 0x01},
-    {REG_AWBCTR3, 0x14},
+    /* AWB控制 - 使用正确的寄存器 */
+    {0x6F, 0xAA},   /* AWB Control 0 */
+    {0x6E, 0x11},   /* AWB Control 1 */
+    {0x6D, 0x01},   /* AWB Control 2 - 实际为0x6D */
+    {REG_AWBCTR3, 0x14},   /* AWB Control 3 */
 
     /* 颜色矩阵（RGB565 from OV7670 官方推荐）*/
     {0x4F,        0x80},
@@ -138,7 +302,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_EDGE,    0x06},
 
     /* HSYNC / VSYNC 极性 */
-    {REG_COM10,   0x00},   /* VSYNC低有效，HREF高有效，PCLK上升沿有效 */
+    {REG_COM10,   0x00},   /* HREF低有效，VSYNC低有效 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
@@ -155,10 +319,11 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_ADCCTR3, 0x08},
 
     /* COM11：60Hz灯光频率消除 */
-    {REG_COM11,   0x00},
-
+    {REG_COM11,   0x00},  
+    //{0x42, 0x08},   
+    /* 开启 DSP 内部标准彩色条输出 */
     /* 结束标记 */
-    {0xFF,        0xFF}
+    {0xFF,0xFF}
 };
 
 /* ============================================================
@@ -167,12 +332,12 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
 
 /**
  * @brief OV7670初始化
- * @param hi2c  I2C句柄（I2C1）
  * @return 0=成功, 1=ID读取失败, 2=寄存器写入失败
  */
-uint8_t OV7670_Init(I2C_HandleTypeDef *hi2c)
+uint8_t OV7670_Init(void)
 {
-    g_hi2c = hi2c;
+    /* 初始化软件I2C引脚 */
+    SCCB_Init();
 
     /* 上电序列 */
     OV7670_PWDN_LOW();   /* 退出掉电模式 */
