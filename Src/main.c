@@ -235,11 +235,12 @@ int main(void)
 
   /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
   /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
-  HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
+ // HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   
   /* 手动注册半传输回调 - HAL_DCMI_Start_DMA不会自动设置XferHalfCpltCallback */
   hdcmi.DMA_Handle->XferHalfCpltCallback = DCMI_HalfFrame_Callback;
   hdcmi.DMA_Handle->XferCpltCallback = DCMI_FullFrame_Callback;
+  HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
