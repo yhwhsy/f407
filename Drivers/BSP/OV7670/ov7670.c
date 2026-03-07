@@ -315,7 +315,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
      * - Bit3=1: HREF反相 → 低电平有效
      * - Bit1=1: VSYNC负有效 → 低电平有效
      */
-    {REG_COM10,   0x02},   /* HREF低有效，VSYNC低有效 */
+    {REG_COM10,   0x0A},   /* HREF低有效，VSYNC低有效 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
@@ -332,7 +332,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_ADCCTR3, 0x08},
 
     /* COM11：60Hz灯光频率消除 */
-    {REG_COM11,   0x00},
+    {REG_COM11,   0x00},  
     //{0x42, 0x08},   
     /* 开启 DSP 内部标准彩色条输出 */
     /* 结束标记 */

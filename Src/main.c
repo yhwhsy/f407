@@ -93,7 +93,7 @@ void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
     
     /* 短暂显示红色警告 */
     ST7789_Fill(COLOR_RED);
-    HAL_Delay(2000000);
+    HAL_Delay(200);
     ST7789_Fill(COLOR_BLACK);
     
     /* 可选：自动重启DCMI */
@@ -183,8 +183,6 @@ int main(void)
   ST7789_Fill(COLOR_BLACK);
   /* 初始化OV7670 */
   uint8_t ov_ret = OV7670_Init();
-  uint8_t check_val = 0;
-  OV7670_ReadReg(REG_COM7, &check_val);
   if (ov_ret != 0)
   {
       ST7789_Fill(COLOR_RED);  /* 失败 */
@@ -195,45 +193,45 @@ int main(void)
   // 1. 开启串口空闲中断接收
   HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
   
-  HAL_Delay(500); // 留点时间给 ESP8266 上电稳定
+//   HAL_Delay(500); // 留点时间给 ESP8266 上电稳定
   
-  // 3. 发送 AT 指令
-  char *at_cmd = "AT\r\n";
-  HAL_UART_Transmit(&huart3, (uint8_t*)at_cmd, strlen(at_cmd), 1000);
+//   // 2. 发送 AT 指令
+//   char *at_cmd = "AT\r\n";
+//   HAL_UART_Transmit(&huart3, (uint8_t*)at_cmd, strlen(at_cmd), 1000);
 
-    ST7789_Fill(COLOR_BLUE); // 蓝屏：正在复位模块
-  ESP8266_SendCmd("AT+RST\r\n", "ready", 3000); // 软复位，等待ready
-  HAL_Delay(1000); // 刚复位完模块需要喘口气
+//     ST7789_Fill(COLOR_BLUE); // 蓝屏：正在复位模块
+//   ESP8266_SendCmd("AT+RST\r\n", "ready", 3000); // 软复位，等待ready
+//   HAL_Delay(1000); // 刚复位完模块需要喘口气
   
-  // 1. 设置为 STA 模式 (连接路由器的模式)
-  ST7789_Fill(COLOR_YELLOW); // 黄屏：正在配置模式
-  if(!ESP8266_SendCmd("AT+CWMODE=3\r\n", "OK", 2000)) {
-      ST7789_Fill(COLOR_RED); while(1); // 失败死机，亮红屏
-  }
+//   // 3. 设置为 STA 模式 (连接路由器的模式)
+//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在配置模式
+//   if(!ESP8266_SendCmd("AT+CWMODE=3\r\n", "OK", 2000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 失败死机，亮红屏
+//   }
 
-  // 2. 连接手机热点 (⚠️修改这里的热点名字和密码)
-  // 注意：热点名字和密码必须被双引号包围，所以在C语言里要用 \" 转义
-  ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连Wi-Fi，这步可能需要几秒钟
-  if(!ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000)) {
-      ST7789_Fill(COLOR_RED); while(1); // 密码错或连不上，亮红屏
-  }
+//   // 4. 连接手机热点 (⚠️修改这里的热点名字和密码)
+//   // 注意：热点名字和密码必须被双引号包围，所以在C语言里要用 \" 转义
+//   ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连Wi-Fi，这步可能需要几秒钟
+//   if(!ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 密码错或连不上，亮红屏
+//   }
 
-  // 测试：单片机能不能在局域网里找到电脑？
+//   // 测试：单片机能不能在局域网里找到电脑？
 
-  // 3. 连接电脑端的 TCP Server (⚠️修改这里的IP地址为电脑的IP，端口8080)
-  ST7789_Fill(COLOR_YELLOW); // 黄屏：正在连电脑TCP Server
-  if(!ESP8266_SendCmd("AT+CIPSTART=\"TCP\",\"192.168.120.77\",8080\r\n", "CONNECT", 10000)) {
-      ST7789_Fill(COLOR_RED); while(1); // 连不上电脑，亮红屏
-  }
+//   // 5. 连接电脑端的 TCP Server (⚠️修改这里的IP地址为电脑的IP，端口8080)
+//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在连电脑TCP Server
+//   if(!ESP8266_SendCmd("AT+CIPSTART=\"TCP\",\"192.168.120.77\",8080\r\n", "CONNECT", 10000)) {
+//       ST7789_Fill(COLOR_RED); while(1); // 连不上电脑，亮红屏
+//   }
 
-  // 4. 开启透传模式并开始发送
-  ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
-  ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000); // 收到 > 符号代表可以随便发数据了
+//   // 6. 开启透传模式并开始发送
+//   ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
+//   ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000); // 收到 > 符号代表可以随便发数据了
   
-  // 5. 大功告成，发一句测试消息给电脑！
-  ST7789_Fill(COLOR_GREEN); // 绿屏：全部连接成功！
-  char *hello_msg = "Hello! ESP8266 & STM32 is online!\r\n";
-  HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
+//   // 7. 大功告成，发一句测试消息给电脑！
+//   ST7789_Fill(COLOR_GREEN); // 绿屏：全部连接成功！
+//   char *hello_msg = "Hello! ESP8266 & STM32 is online!\r\n";
+//   HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
 
   /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
   /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
