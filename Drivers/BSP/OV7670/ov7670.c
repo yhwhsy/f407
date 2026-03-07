@@ -315,7 +315,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
      * - Bit3=1: HREF反相 → 低电平有效
      * - Bit1=1: VSYNC负有效 → 低电平有效
      */
-    {REG_COM10,   0x0A},   /* HREF低有效，VSYNC低有效 */
+    {REG_COM10,   0x00},   /* HREF低有效，VSYNC低有效 */
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/

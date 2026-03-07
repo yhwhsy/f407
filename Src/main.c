@@ -111,7 +111,7 @@ void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
     
     /* 短暂显示蓝色警告 */
     ST7789_Fill(COLOR_BLUE);
-    HAL_Delay(300000);
+    HAL_Delay(300);
     ST7789_Fill(COLOR_BLACK);
 }
 
