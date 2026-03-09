@@ -180,8 +180,6 @@ int main(void)
   /* 初始化TFT */
   ST7789_Init(&hspi1);
   ST7789_SetRotation(1);
-  ST7789_Fill(COLOR_MAGENTA);
-  HAL_Delay(1000);
   ST7789_Fill(COLOR_BLACK);
   /* 初始化OV7670 */
   uint8_t ov_ret = OV7670_Init();
