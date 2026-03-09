@@ -81,7 +81,8 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
     ST7789_Fill(COLOR_YELLOW); // 黄屏：正在连 TCP Server
     sprintf(cmd_buf, "AT+CIPSTART=\"TCP\",\"%s\",%d\r\n", server_ip, port);
     // 注意：1.5.4.1 固件连接成功返回的是 "CONNECT"
-    if(ESP8266_SendCmd(cmd_buf, "CONNECT", 10000) != ESP8266_OK) return ESP8266_ERROR;
+    ESP8266_SendCmd(cmd_buf, NULL, 0); 
+    HAL_Delay(2000); // 强行等它连上
 
     // 6. 开启透传模式
     ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
