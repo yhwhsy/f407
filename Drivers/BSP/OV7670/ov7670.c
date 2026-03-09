@@ -222,110 +222,199 @@ typedef struct {
 } RegVal_t;
 
 static const RegVal_t ov7670_rgb565_qvga_regs[] = {
-    /* 软件复位 */
-    {REG_COM7,    COM7_RESET},
-
-    /* 时钟：XCLK=8MHz，不使用PLL倍频，PCLK=8MHz（OV7670支持最高24MHz PCLK） */
-    {REG_CLKRC,   0x00},   /* 预分频/1，使用直接时钟 */
-    {REG_DBLV,    0x0A},   /* 旁路PLL，使用内部稳压器 */
-
-    /* 输出格式：RGB565，QVGA */
-    {REG_COM7,    COM7_FMT_QVGA | COM7_RGB},
-    {REG_COM15,   COM15_RGB565 | COM15_R00FF},
-    {REG_RGB444,  0x00},   /* 关闭RGB444 */
-
-    /* QVGA水平/垂直帧参数 */
-    {REG_HSTART,  0x16},
-    {REG_HSTOP,   0x04},
-    {REG_HREF,    0x24},
-    {REG_VSTART,  0x02},
-    {REG_VSTOP,   0x7A},
-    {REG_VREF,    0x0A},
-
-    /* 缩放控制（QVGA = VGA/2）*/
-    {REG_COM3,    0x04},   /* 使能缩放 */
-    {REG_COM14,   0x18},   /* 手动缩放使能+DCW使能，PCLK不分频(bit[2:0]=000) */
-    {REG_SCALING_XSC,      0x3A},
-    {REG_SCALING_YSC,      0x35},
-    {REG_SCALING_DCWCTR,   0x11},   /* 水平/垂直各降采样2倍 */
-    {REG_SCALING_PC,       0xF1},   /* PCLK分频 */
-    {REG_SCALING_PCLK_DIV, 0x00},   /* 不额外分频 */
-
-    /* AEC/AGC控制 */
-    {REG_COM8,    0xE5},   /* 使能AGC, AEC, AWB */
-    {REG_GAIN,    0x00},
-    {REG_AECH,    0x00},
-    {REG_COM9,    0x18},   /* 最大AGC增益4x */
-    {REG_AEW,     0x75},   /* AEC上界 */
-    {REG_AEB,     0x63},   /* AEC下界 */
-    {REG_VPT,     0xD4},   /* 快速AEC操作区 */
-
-    /* AWB控制 - 使用正确的寄存器 */
-    {0x6F, 0xAA},   /* AWB Control 0 */
-    {0x6E, 0x11},   /* AWB Control 1 */
-    {0x6D, 0x01},   /* AWB Control 2 - 实际为0x6D */
-    {REG_AWBCTR3, 0x14},   /* AWB Control 3 */
-
-    /* 颜色矩阵（RGB565 from OV7670 官方推荐）*/
-    {0x4F,        0x80},
-    {0x50,        0x80},
-    {0x51,        0x00},
-    {0x52,        0x22},
-    {0x53,        0x5E},
-    {0x54,        0x80},
-    {0x58,        0x9E},
-
-    /* Gamma */
-    {0x7A,        0x20},
-    {0x7B,        0x10},
-    {0x7C,        0x1E},
-    {0x7D,        0x35},
-    {0x7E,        0x5A},
-    {0x7F,        0x69},
+    /* 软件复位与时钟配置 */
+    {REG_COM7,    COM7_RESET}, // 0x12, 0x80 (宏定义的值通常是0x80)
+    {0x3a,        0x04},
+    {0x40,        0xd0},
+    
+    /* 输出格式：RGB565，QVGA，且必须关闭彩条测试 (Bit 1 = 0) */
+    {REG_COM7,    0x14}, // 原来的 COM7_FMT_QVGA | COM7_RGB
+    {0x32,        0x80},
+    {0x17,        0x16}, // HSTART
+    {0x18,        0x04}, // HSTOP
+    {0x19,        0x02}, // VSTART
+    {0x1a,        0x7b}, // VSTOP
+    {0x03,        0x06}, // VREF
+    {0x0c,        0x04}, // COM3
+    {0x3e,        0x00}, // COM14
+    
+    /* 缩放控制 */
+    {0x70,        0x3a}, // SCALING_XSC
+    {0x71,        0x35}, // SCALING_YSC - 确保关闭了测试图案 (Bit 7 = 0)
+    {0x72,        0x11}, // SCALING_DCWCTR
+    {0x73,        0x00}, // SCALING_PCLK_DIV
+    {0xa2,        0x02}, // SCALING_PCLK_DELAY
+    
+    /* 时钟分频 (如果DMA溢出出现黑线，可将 0x81 改大如 0x82) */
+    {REG_CLKRC,   0x81}, // 0x11
+    
+    /* Gamma 曲线调校 */
+    {0x7a,        0x20},
+    {0x7b,        0x1c},
+    {0x7c,        0x28},
+    {0x7d,        0x3c},
+    {0x7e,        0x55},
+    {0x7f,        0x68},
     {0x80,        0x76},
     {0x81,        0x80},
     {0x82,        0x88},
-    {0x83,        0x8F},
+    {0x83,        0x8f},
     {0x84,        0x96},
-    {0x85,        0xA3},
-    {0x86,        0xAF},
-    {0x87,        0xC4},
-    {0x88,        0xD7},
-    {0x89,        0xE8},
+    {0x85,        0xa3},
+    {0x86,        0xaf},
+    {0x87,        0xc4},
+    {0x88,        0xd7},
+    {0x89,        0xe8},
+    
+    /* AEC/AGC/AWB 控制与设定 */
+    {REG_COM8,    0xe0}, // 0x13
+    {REG_GAIN,    0x00}, // 0x00
+    {0x10,        0x00}, // AECH
+    {0x0d,        0x00}, // COM4
+    {REG_COM9,    0x28}, // 0x14 
+    {0xa5,        0x05}, // BD50MAX
+    {0xab,        0x07}, // BD60MAX
+    {0x24,        0x75}, // AEW
+    {0x25,        0x63}, // AEB
+    {0x26,        0xA5}, // VPT
+    {0x9f,        0x78}, // HAECC1
+    {0xa0,        0x68}, // HAECC2
+    {0xa1,        0x03}, // HAECC3
+    {0xa6,        0xdf}, // HAECC4
+    {0xa7,        0xdf}, // HAECC5
+    {0xa8,        0xf0}, // HAECC6
+    {0xa9,        0x90}, // HAECC7
+    {0xaa,        0x94}, // HAECC8
+    {REG_COM8,    0xe5}, // 0x13
+    {0x0e,        0x61}, // COM5
+    {0x0f,        0x4b}, // COM6
+    {0x16,        0x02},
+    {0x1e,        0x07}, // MVFP (控制镜像/翻转)
+    {0x21,        0x02}, // ADCCTR1
+    {0x22,        0x91}, // ADCCTR2
+    {0x29,        0x07}, // RSVD
+    {0x33,        0x0b}, // AWBC1
+    {0x35,        0x0b}, // AWBC3
+    {0x37,        0x1d}, // ADC
+    {0x38,        0x71}, // ACOM
+    {0x39,        0x2a}, // OFON
+    {0x3c,        0x78}, // COM12
+    {0x4d,        0x40}, // RSVD
+    {0x4e,        0x20}, // RSVD
+    {0x69,        0x00}, // GFIX
+    {0x6b,        0x60}, // DBLV
+    {0x74,        0x19}, // REG74
+    {0x8d,        0x4f}, // RSVD
+    {0x8e,        0x00}, // RSVD
+    {0x8f,        0x00}, // RSVD
+    {0x90,        0x00}, // RSVD
+    {0x91,        0x00}, // RSVD
+    {0x92,        0x00}, // RSVD
+    {0x96,        0x00}, // RSVD
+    {0x9a,        0x80}, // RSVD
+    {0xb0,        0x84}, // RSVD
+    {0xb1,        0x0c}, // ABLC1
+    {0xb2,        0x0e}, // RSVD
+    {0xb3,        0x82}, // THL_ST
+    {0xb8,        0x0a}, // RSVD
 
-    /* 饱和度/色调 */
-    {0x4E,        0x01},   /* RGB通道矩阵系数符号 */
-    {REG_GGAIN,   0x5A},   /* G通道AWB增益 */
+    /* 额外寄存器调校 */
+    {0x43,        0x14},
+    {0x44,        0xf0},
+    {0x45,        0x34},
+    {0x46,        0x58},
+    {0x47,        0x28},
+    {0x48,        0x3a},
+    {0x59,        0x88},
+    {0x5a,        0x88},
+    {0x5b,        0x44},
+    {0x5c,        0x67},
+    {0x5d,        0x49},
+    {0x5e,        0x0e},
+    {0x64,        0x04},
+    {0x65,        0x20},
+    {0x66,        0x05},
+    {0x94,        0x04},
+    {0x95,        0x08},
+    {0x6c,        0x0a}, // AWBCTR2
+    {0x6d,        0x55}, // AWBCTR3
+    {0x6e,        0x11}, // AWBCTR1
+    {0x6f,        0x9f}, // AWBCTR0
+    {0x6a,        0x40}, // GGAIN
+    {0x01,        0x40}, // BLUE
+    {0x02,        0x40}, // RED
+    {REG_COM8,    0xe7}, // 0x13
+    
+    /* 【极其关键】：STM32 DCMI 同步信号极性适配 */
+    /* 必须是 0x0A 以设置 VSYNC 和 HREF 为低电平有效，解决死机无反应问题 */
+    {REG_COM10,   0x0A}, // 0x15
 
-    /* 降噪 */
-    {REG_COM16,   0x38},   /* AWB增益使能，降噪使能 */
-    {REG_EDGE,    0x06},
-
-    /* HSYNC / VSYNC 极性 */
-    {REG_COM10,   0x02}, 
-    {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
-
-    /* 镜像/翻转（根据实际安装方向调整）*/
-    {REG_MVFP,    0x00},   /* 0x00=正常，0x20=水平镜像，0x10=垂直翻转 */
-
-    /* ADC配置 */
-    {REG_ADC,     0x02},
-    {REG_ACOM,    0x3C},
-    {REG_OFON,    0x38},
-
-    /* 参考电压 */
-    {REG_ADCCTR1, 0x02},
-    {REG_ADCCTR2, 0x91},
-    {REG_ADCCTR3, 0x08},
-
-    /* COM11：60Hz灯光频率消除 */
-    {REG_COM11,   0x00},  
-    //{0x42, 0x08},   
-    /* 开启 DSP 内部标准彩色条输出 */
+    /* 颜色矩阵（RGB565 官方推荐值适配） */
+    {0x4f,        0x80}, // MTX1
+    {0x50,        0x80}, // MTX2
+    {0x51,        0x00}, // MTX3
+    {0x52,        0x22}, // MTX4
+    {0x53,        0x5e}, // MTX5
+    {0x54,        0x80}, // MTX6
+    {0x58,        0x9e}, // MTXS
+    
+    /* 镜头阴影校正 (Lens Shading Correction) 等 */
+    {0x41,        0x08},
+    {0x3f,        0x00}, // EDGE
+    {0x75,        0x05},
+    {0x76,        0xe1},
+    {0x4c,        0x00},
+    {0x77,        0x01},
+    {0x3d,        0xc2}, // COM13
+    {0x4b,        0x09},
+    {0xc9,        0x60},
+    {0x41,        0x38},
+    {0x56,        0x40},
+    
+    /* 杂项 */
+    {0x34,        0x11}, // ARCOM2
+    {0x3b,        0x02}, // COM11
+    {0xa4,        0x89}, // NT_CTRL
+    {0x96,        0x00},
+    {0x97,        0x30},
+    {0x98,        0x20},
+    {0x99,        0x30},
+    {0x9a,        0x84},
+    {0x9b,        0x29},
+    {0x9c,        0x03},
+    {0x9d,        0x4c},
+    {0x9e,        0x3f},
+    {0x78,        0x04},
+    
+    /* 降噪及其他边缘增强参数 */
+    {0x79,        0x01},
+    {0xc8,        0xf0},
+    {0x79,        0x0f},
+    {0xc8,        0x00},
+    {0x79,        0x10},
+    {0xc8,        0x7e},
+    {0x79,        0x0a},
+    {0xc8,        0x80},
+    {0x79,        0x0b},
+    {0xc8,        0x01},
+    {0x79,        0x0c},
+    {0xc8,        0x0f},
+    {0x79,        0x0d},
+    {0xc8,        0x20},
+    {0x79,        0x09},
+    {0xc8,        0x80},
+    {0x79,        0x02},
+    {0xc8,        0xc0},
+    {0x79,        0x03},
+    {0xc8,        0x40},
+    {0x79,        0x05},
+    {0xc8,        0x30},
+    {0x79,        0x26}, 
+    {0x09,        0x00}, // COM2
+    
     /* 结束标记 */
-    {0xFF,0xFF}
+    {0xFF, 0xFF}
 };
-
 /* ============================================================
  *  公共API
  * ============================================================ */
