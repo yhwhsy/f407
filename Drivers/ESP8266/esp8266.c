@@ -17,6 +17,7 @@ uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
     memset(rx_buffer, 0, 100); 
 
     // 2. 发送指令
+    HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
     HAL_UART_Transmit(&huart3, (uint8_t *)cmd, strlen(cmd), 1000);
 
     // 3. 如果不需要等待应答，直接返回成功
@@ -68,8 +69,7 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
 
     // 3. 连接 Wi-Fi 热点 (动态拼接字符串)
     ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连 Wi-Fi
-    sprintf(cmd_buf, "AT+CWJAP=\"%s\",\"%s\"\r\n", ssid, pwd);
-    if(ESP8266_SendCmd(cmd_buf, "WIFI GOT IP", 10000) != ESP8266_OK) return ESP8266_ERROR;
+    if(ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000) != ESP8266_OK) return ESP8266_ERROR;
     HAL_Delay(2000); // 必须等待路由器彻底分配好 IP
 
     // 4. 清理旧连接并设置为单连接模式

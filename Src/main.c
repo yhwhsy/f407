@@ -161,8 +161,6 @@ int main(void)
       ST7789_Fill(COLOR_RED); 
       while(1); // 如果返回 1 (失败)，则亮红屏死机
   }
-
-  // 连接成功，发送测试消息并亮绿屏
   char *hello_msg = "Hello! Network is ready!\r\n";
   HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
   

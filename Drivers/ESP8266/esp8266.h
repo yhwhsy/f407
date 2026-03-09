@@ -12,7 +12,7 @@
  * 注意：根据你实际的串口号和接收数组名进行修改！
  */
 extern UART_HandleTypeDef huart3;       // 与 ESP8266 通信的串口
-extern uint8_t rx_buffer[];             // 串口接收缓冲区 (你之前调试时用到的那个)
+extern uint8_t rx_buffer[100];             // 串口接收缓冲区 (你之前调试时用到的那个)
 
 /* * 函数声明 
  */
