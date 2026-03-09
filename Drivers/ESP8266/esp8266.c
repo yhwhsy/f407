@@ -85,9 +85,10 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
     HAL_Delay(2000); // 强行等它连上
 
     // 6. 开启透传模式
-    ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
-    ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000);
-    HAL_Delay(500); // 极其关键的延时，等待模块彻底进入透传状态
+    ESP8266_SendCmd("AT+CIPMODE=1\r\n", NULL, 0);
+    HAL_Delay(1000);
+    ESP8266_SendCmd("AT+CIPSEND\r\n", NULL, 0);
+    HAL_Delay(1000); // 极其关键的延时，等待模块彻底进入透传状态
 
     return ESP8266_OK; // 全部通关！
 }
