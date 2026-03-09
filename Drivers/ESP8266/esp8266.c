@@ -14,7 +14,7 @@ uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
 {
     // 1. 发送前先清空之前的接收缓冲区 (防止旧数据干扰)
     // 注意：假设你的 rx_buffer 大小是 1024，如果不是请改成本身的实际大小
-    memset(rx_buffer, 0, 1024); 
+    memset(rx_buffer, 0, 100); 
 
     // 2. 发送指令
     HAL_UART_Transmit(&huart3, (uint8_t *)cmd, strlen(cmd), 1000);
