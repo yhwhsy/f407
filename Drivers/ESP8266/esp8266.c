@@ -69,7 +69,7 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
 
     // 3. 连接 Wi-Fi 热点 (动态拼接字符串)
     ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连 Wi-Fi
-    if(ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000) != ESP8266_OK) return ESP8266_ERROR;
+    if(ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 20000) != ESP8266_OK) return ESP8266_ERROR;
     HAL_Delay(2000); // 必须等待路由器彻底分配好 IP
 
     // 4. 清理旧连接并设置为单连接模式
