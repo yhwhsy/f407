@@ -302,20 +302,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {REG_EDGE,    0x06},
 
     /* HSYNC / VSYNC 极性 */
-    /* 
-     * COM10寄存器位定义（数据手册）：
-     * Bit 0: HSYNC反相
-     * Bit 1: VSYNC负有效 (1=低电平有效)
-     * Bit 3: HREF反相 (1=低电平有效)
-     * 
-     * DCMI配置：VSPolarity=LOW, HSPolarity=LOW
-     * 需要：VSYNC低有效 + HREF低有效
-     * 
-     * 0x0A = 0x08 | 0x02 = Bit3 | Bit1
-     * - Bit3=1: HREF反相 → 低电平有效
-     * - Bit1=1: VSYNC负有效 → 低电平有效
-     */
-    {REG_COM10,   0x02},   /* HREF低有效，VSYNC低有效 */
+    {REG_COM10,   0x02}, 
     {REG_TSLB,    0x04},   /* UYVY格式字节顺序（RGB时不影响）*/
 
     /* 镜像/翻转（根据实际安装方向调整）*/
