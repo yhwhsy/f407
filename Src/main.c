@@ -53,7 +53,8 @@
 /* 行缓冲区 - 20行 x 320像素 x 2字节 */
 __attribute__((aligned(4)))
 uint8_t g_line_buf[320 * 20 * 2];
-
+uint8_t photo_buf[38400];     // 开辟 38.4KB 内存，存放提取后的完美照片
+uint8_t take_photo_state = 0; // 0:平时刷屏, 1:内存收集中, 2:向外发送中
 volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
 volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
 volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
@@ -155,7 +156,6 @@ int main(void)
       ST7789_Fill(COLOR_RED);  /* 失败 */
       while(1);
   }
-
   if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
   {
       ST7789_Fill(COLOR_RED); 
@@ -181,23 +181,31 @@ int main(void)
   uint32_t last_check = HAL_GetTick();
   uint32_t last_irq_count = 0;
   uint8_t chunk_counter = 0;
-  
+  uint32_t last_photo_time = HAL_GetTick();
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* 处理DMA半传输完成 - 发送前10行 */
+    // ==========================================
+    // 0. 定时触发：每 5 秒拍一张
+    // ==========================================
+    if (HAL_GetTick() - last_photo_time >= 5000)
+    {
+        last_photo_time = HAL_GetTick();
+        if (take_photo_state == 0) { 
+            take_photo_state = 1;  // 开始收集下一张照片！
+            chunk_counter = 0;
+        }
+    }
+    // ==========================================
+    // 1. 处理前 10 行
+    // ==========================================
     if (flag_half_ready)
     {
         flag_half_ready = 0;
-        //  如果是这帧画面的第一个数据块，先向电脑发送“帧头暗号”
-        if(chunk_counter == 0) {
-            HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
-        }
         dma_irq_count++;
         
-        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
         uint16_t current_row;
         __disable_irq();
         current_row = g_row;
@@ -205,22 +213,39 @@ int main(void)
         if (g_row >= 240) g_row = 0;
         __enable_irq();
         
+        // 照常刷新屏幕（屏幕依然保持 320x240 全屏流畅）
         ST7789_SetWindow(0, current_row, 319, current_row + 9);
         TFT_DC_HIGH();
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
-        HAL_UART_Transmit(&huart3, (uint8_t*)g_line_buf, 6400, 1000); 
-        chunk_counter++;
+        
+        // 👇 核心魔法：如果正在拍照，软件隔行抽样压缩 (12.8KB -> 1.6KB)
+        if (take_photo_state == 1) 
+        {
+            uint16_t *p_src = (uint16_t *)g_line_buf;
+            uint16_t *p_dst = (uint16_t *)(photo_buf + chunk_counter * 1600); // 字节偏移
+            int dst_idx = 0;
+            
+            // 每隔 1 行，每隔 1 列提取像素
+            for(int row = 0; row < 10; row += 2) { 
+                for(int col = 0; col < 320; col += 2) { 
+                    p_dst[dst_idx++] = p_src[row * 320 + col];
+                }
+            }
+            chunk_counter++;
+            if(chunk_counter >= 24) take_photo_state = 2; // 收集满 24 块，可以发送了
+        }
     }
     
-    /* 处理DMA全传输完成 - 发送后10行 */
+    // ==========================================
+    // 2. 处理后 10 行
+    // ==========================================
     if (flag_full_ready)
     {
         flag_full_ready = 0;
         dma_irq_count++;
         
-        /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
         uint16_t current_row;
         __disable_irq();
         current_row = g_row;
@@ -233,22 +258,49 @@ int main(void)
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
-        HAL_UART_Transmit(&huart3, (uint8_t*)(g_line_buf + 6400), 6400, 1000); 
-        chunk_counter++;
-        // 如果一整帧所有的块都发完了，计数器清零，准备迎接下一张图片
-        // (具体的总块数取决于你 buffer 的大小，如果是 20 行一块，全屏 240 行就是 12 块。半块算一次的话就是 24 次)
-        if(chunk_counter >= 24) { 
-            chunk_counter = 0;
-            // 可选：在这里加个 HAL_Delay(2000); 拍完一张休息2秒
+        
+        if (take_photo_state == 1) 
+        {
+            uint16_t *p_src = (uint16_t *)(g_line_buf + 6400); // 指向后半段数据
+            uint16_t *p_dst = (uint16_t *)(photo_buf + chunk_counter * 1600); 
+            int dst_idx = 0;
+            
+            for(int row = 0; row < 10; row += 2) { 
+                for(int col = 0; col < 320; col += 2) { 
+                    p_dst[dst_idx++] = p_src[row * 320 + col];
+                }
+            }
+            chunk_counter++;
+            if(chunk_counter >= 24) take_photo_state = 2;
         }
     }
     
-    /* 每秒检查一次DMA状态 - 持续心跳监测 */
+    // ==========================================
+    // 3. 独立发送逻辑（绝对无撕裂）
+    // ==========================================
+    if (take_photo_state == 2) 
+    {
+        // 强行暂停摄像头，防止我们在发数据时 DMA 报溢出错误
+        HAL_DCMI_Stop(&hdcmi);
+        
+        // 发送这 38.4KB 的纯净图片
+        HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
+        HAL_UART_Transmit(&huart3, photo_buf, 38400, 5000); 
+        
+        // 发送完毕，恢复平时状态
+        take_photo_state = 0; 
+        chunk_counter = 0;
+        
+        // 重新启动摄像头，屏幕继续流畅！
+        HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
+    }
+    
+    // ==========================================
+    // 每秒检测心跳 (保留你的旧代码)
+    // ==========================================
     if (HAL_GetTick() - last_check >= 1000)
     {
         last_check = HAL_GetTick();
-        
-        /* 如果DMA中断计数没有增加，显示蓝色警告 */
         if (dma_irq_count == last_irq_count)
         {
             ST7789_Fill(COLOR_BLUE);
