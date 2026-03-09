@@ -33,6 +33,7 @@ targets:
         - Drivers/BSP/ESP8266
         - Drivers/BSP/SENSOR
         - Middlewares/DMA
+        - Drivers/ESP8266
       libList: []
     excludeList:
       - Src/main_test.c

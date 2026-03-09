@@ -29,6 +29,7 @@
 #include "ov7670.h"
 #include "st7789.h"
 #include "string.h"
+#include "esp8266.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -90,15 +91,10 @@ void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
     /* 错误处理：红色闪烁表示DCMI错误 */
     static uint8_t err_cnt = 0;
     err_cnt++;
-    
     /* 短暂显示红色警告 */
     ST7789_Fill(COLOR_RED);
     HAL_Delay(200);
     ST7789_Fill(COLOR_BLACK);
-    
-    /* 可选：自动重启DCMI */
-    /* HAL_DCMI_Stop(hdcmi); */
-    /* HAL_DCMI_Start_DMA(hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4); */
 }
 
 /* DMA 错误回调 - 处理DMA传输错误 */
@@ -113,35 +109,6 @@ void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
     ST7789_Fill(COLOR_BLUE);
     HAL_Delay(300000);
     ST7789_Fill(COLOR_BLACK);
-}
-
-// AT指令发送封装函数
-// cmd: 要发送的指令
-// ack: 期待的回复内容 (比如 "OK")
-// timeout: 超时时间(毫秒)
-uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
-{
-    // 清空接收缓冲区
-    memset(rx_buffer, 0, sizeof(rx_buffer));
-    
-    // 启动中断接收
-    HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
-    
-    // 发送指令
-    HAL_UART_Transmit(&huart3, (uint8_t*)cmd, strlen(cmd), 1000);
-    
-    // 等待回复
-    uint32_t start_time = HAL_GetTick();
-    while((HAL_GetTick() - start_time) < timeout)
-    {
-        // 如果接收缓冲区里找到了期待的字符串
-        if(strstr((char*)rx_buffer, ack) != NULL)
-        {
-            return 1; // 成功
-        }
-        HAL_Delay(10); // 稍微延时，防止死循环占满CPU
-    }
-    return 0; // 超时失败
 }
 /* USER CODE END 0 */
 
@@ -189,49 +156,18 @@ int main(void)
       while(1);
   }
 
+  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+  {
+      ST7789_Fill(COLOR_RED); 
+      while(1); // 如果返回 1 (失败)，则亮红屏死机
+  }
 
-  // 1. 开启串口空闲中断接收
-  HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
+  // 连接成功，发送测试消息并亮绿屏
+  char *hello_msg = "Hello! Network is ready!\r\n";
+  HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
   
-//   HAL_Delay(500); // 留点时间给 ESP8266 上电稳定
-  
-//   // 2. 发送 AT 指令
-//   char *at_cmd = "AT\r\n";
-//   HAL_UART_Transmit(&huart3, (uint8_t*)at_cmd, strlen(at_cmd), 1000);
-
-//     ST7789_Fill(COLOR_BLUE); // 蓝屏：正在复位模块
-//   ESP8266_SendCmd("AT+RST\r\n", "ready", 3000); // 软复位，等待ready
-//   HAL_Delay(1000); // 刚复位完模块需要喘口气
-  
-//   // 3. 设置为 STA 模式 (连接路由器的模式)
-//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在配置模式
-//   if(!ESP8266_SendCmd("AT+CWMODE=3\r\n", "OK", 2000)) {
-//       ST7789_Fill(COLOR_RED); while(1); // 失败死机，亮红屏
-//   }
-
-//   // 4. 连接手机热点 (⚠️修改这里的热点名字和密码)
-//   // 注意：热点名字和密码必须被双引号包围，所以在C语言里要用 \" 转义
-//   ST7789_Fill(COLOR_BLUE); // 蓝屏：正在连Wi-Fi，这步可能需要几秒钟
-//   if(!ESP8266_SendCmd("AT+CWJAP=\"yhwhsy\",\"13616338678\"\r\n", "WIFI GOT IP", 10000)) {
-//       ST7789_Fill(COLOR_RED); while(1); // 密码错或连不上，亮红屏
-//   }
-
-//   // 测试：单片机能不能在局域网里找到电脑？
-
-//   // 5. 连接电脑端的 TCP Server (⚠️修改这里的IP地址为电脑的IP，端口8080)
-//   ST7789_Fill(COLOR_YELLOW); // 黄屏：正在连电脑TCP Server
-//   if(!ESP8266_SendCmd("AT+CIPSTART=\"TCP\",\"192.168.120.77\",8080\r\n", "CONNECT", 10000)) {
-//       ST7789_Fill(COLOR_RED); while(1); // 连不上电脑，亮红屏
-//   }
-
-//   // 6. 开启透传模式并开始发送
-//   ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000);
-//   ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000); // 收到 > 符号代表可以随便发数据了
-  
-//   // 7. 大功告成，发一句测试消息给电脑！
-//   ST7789_Fill(COLOR_GREEN); // 绿屏：全部连接成功！
-//   char *hello_msg = "Hello! ESP8266 & STM32 is online!\r\n";
-//   HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
+  ST7789_Fill(COLOR_GREEN);
+  HAL_Delay(500);
 
   /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
   /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
@@ -246,6 +182,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   uint32_t last_check = HAL_GetTick();
   uint32_t last_irq_count = 0;
+  uint8_t chunk_counter = 0;
   
   while (1)
   {
@@ -256,6 +193,10 @@ int main(void)
     if (flag_half_ready)
     {
         flag_half_ready = 0;
+        //  如果是这帧画面的第一个数据块，先向电脑发送“帧头暗号”
+        if(chunk_counter == 0) {
+            HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
+        }
         dma_irq_count++;
         
         /* 临时保存当前行位置，防止中断中g_row被修改导致窗口设置错误 */
@@ -271,6 +212,8 @@ int main(void)
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
+        HAL_UART_Transmit(&huart3, (uint8_t*)g_line_buf, 6400, 1000); 
+        chunk_counter++;
     }
     
     /* 处理DMA全传输完成 - 发送后10行 */
@@ -292,6 +235,14 @@ int main(void)
         TFT_CS_LOW();
         HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
         TFT_CS_HIGH();
+        HAL_UART_Transmit(&huart3, (uint8_t*)(g_line_buf + 6400), 6400, 1000); 
+        chunk_counter++;
+        // 如果一整帧所有的块都发完了，计数器清零，准备迎接下一张图片
+        // (具体的总块数取决于你 buffer 的大小，如果是 20 行一块，全屏 240 行就是 12 块。半块算一次的话就是 24 次)
+        if(chunk_counter >= 24) { 
+            chunk_counter = 0;
+            // 可选：在这里加个 HAL_Delay(2000); 拍完一张休息2秒
+        }
     }
     
     /* 每秒检查一次DMA状态 - 持续心跳监测 */
