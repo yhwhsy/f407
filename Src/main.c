@@ -156,15 +156,13 @@ int main(void)
       ST7789_Fill(COLOR_RED);  /* 失败 */
       while(1);
   }
+  /* 初始化ESP8266 */
   if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
   {
       ST7789_Fill(COLOR_RED); 
       while(1); // 如果返回 1 (失败)，则亮红屏死机
   }
-  char *hello_msg = "Hello! Network is ready!\r\n";
-  HAL_UART_Transmit(&huart3, (uint8_t*)hello_msg, strlen(hello_msg), 1000);
-  
-  ST7789_Fill(COLOR_GREEN);
+   ST7789_Fill(COLOR_GREEN);
   HAL_Delay(500);
 
   /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
@@ -280,18 +278,24 @@ int main(void)
     // ==========================================
     if (take_photo_state == 2) 
     {
-        // 强行暂停摄像头，防止我们在发数据时 DMA 报溢出错误
         HAL_DCMI_Stop(&hdcmi);
         
-        // 发送这 38.4KB 的纯净图片
-        HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
-        HAL_UART_Transmit(&huart3, photo_buf, 38400, 5000); 
+        // 👇 【侦测魔法 1】：开始发送前，让屏幕变成红色！
+        ST7789_Fill(COLOR_RED); 
         
-        // 发送完毕，恢复平时状态
+        HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
+        
+        for(int i = 0; i < 24; i++) {
+            HAL_UART_Transmit(&huart3, photo_buf + (i * 1600), 1600, 1000);
+            HAL_Delay(20); 
+        }
+        
+        // 👇 【侦测魔法 2】：发送顺利结束，让屏幕恢复黑色（或者原来正常的画面）！
+        ST7789_Fill(COLOR_BLACK); 
+        
         take_photo_state = 0; 
         chunk_counter = 0;
         
-        // 重新启动摄像头，屏幕继续流畅！
         HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
     }
     

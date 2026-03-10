@@ -71,7 +71,7 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
     ST7789_Fill(COLOR_BLUE); 
     sprintf(cmd_buf, "AT+CWJAP=\"%s\",\"%s\"\r\n", ssid, pwd);
     ESP8266_SendCmd(cmd_buf, NULL, 0);
-    HAL_Delay(8000); 
+    HAL_Delay(12000); 
 
     // 4. 清理旧连接
     ESP8266_SendCmd("AT+CIPMUX=0\r\n", NULL, 0);
