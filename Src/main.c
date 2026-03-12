@@ -54,13 +54,16 @@
 __attribute__((aligned(4)))
 uint8_t g_line_buf[320 * 20 * 2];
 uint8_t photo_buf[38400];     // 开辟 38.4KB 内存，存放提取后的完美照片
-uint8_t take_photo_state = 0; // 0:平时刷屏, 1:内存收集中, 2:向外发送中
 volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
 volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
 volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
 volatile uint16_t g_row = 0;           /* 当前屏幕写入行位置（全局变量，防撕裂保护用） */
 uint8_t rx_buffer[100];         // 串口接收缓冲区
 volatile uint8_t esp_ok_flag = 0; // 成功收到OK的标志位
+__attribute__((aligned(4))) 
+uint16_t full_frame_buf[320 * 160]; 
+uint8_t is_online = 0;        // 0: 脱机模式(仅屏幕当记录仪), 1: 联网模式(发图片给电脑)
+uint8_t take_photo_state = 0; // 0: 平时刷屏, 1: 准备抓拍, 2: 正在发送
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -71,20 +74,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-/* DCMI DMA半传输完成回调 - 手动注册，HAL_DCMI_Start_DMA不会自动设置 */
-static void DCMI_HalfFrame_Callback(DMA_HandleTypeDef *hdma)
-{
-    UNUSED(hdma);
-    flag_half_ready = 1;
-}
-
-/* DCMI DMA全传输完成回调 - 手动注册 */
-static void DCMI_FullFrame_Callback(DMA_HandleTypeDef *hdma)
-{
-    UNUSED(hdma);
-    flag_full_ready = 1;
-}
-
 /* DCMI 错误回调 - 用于捕获同步错误或DMA错误 */
 void HAL_DCMI_ErrorCallback(DCMI_HandleTypeDef *hdcmi)
 {
@@ -110,6 +99,20 @@ void HAL_DMA_ErrorCallback(DMA_HandleTypeDef *hdma)
     ST7789_Fill(COLOR_BLUE);
     HAL_Delay(300000);
     ST7789_Fill(COLOR_BLACK);
+}
+
+void TFT_ShowWidescreen(uint16_t* buf) 
+{
+    // 屏幕高度240，图像高度160。上下各留白 40 像素，居中显示！
+    ST7789_SetWindow(0, 40, 319, 199);
+    TFT_DC_HIGH();
+    TFT_CS_LOW();
+    
+    // 因为 HAL_SPI_Transmit 最大只能发 65535 字节，我们把 102400 字节分两次轰进去！
+    HAL_SPI_Transmit(&hspi1, (uint8_t*)buf, 51200, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, ((uint8_t*)buf) + 51200, 51200, HAL_MAX_DELAY);
+    
+    TFT_CS_HIGH();
 }
 /* USER CODE END 0 */
 
@@ -156,163 +159,80 @@ int main(void)
       ST7789_Fill(COLOR_RED);  /* 失败 */
       while(1);
   }
-  /* 初始化ESP8266 */
-  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
-  {
-      ST7789_Fill(COLOR_RED); 
-      while(1); // 如果返回 1 (失败)，则亮红屏死机
-  }
-   ST7789_Fill(COLOR_GREEN);
   HAL_Delay(500);
-
-  /* 启动DCMI DMA捕获 - 使用CubeMX生成的配置 */
-  /* 启动DCMI捕获，使用行缓冲模式 - 20行 x 320像素 x 2字节 = 12800字节 */
-  HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
-  
-  /* 手动注册半传输回调 - HAL_DCMI_Start_DMA不会自动设置XferHalfCpltCallback */
-  hdcmi.DMA_Handle->XferHalfCpltCallback = DCMI_HalfFrame_Callback;
-  hdcmi.DMA_Handle->XferCpltCallback = DCMI_FullFrame_Callback;
+  /* 初始化ESP8266 */
+//   if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+//   {
+//       ST7789_Fill(COLOR_RED); 
+//       while(1); // 如果返回 1 (失败)，则亮红屏死机
+//   }
+  ST7789_Fill(COLOR_GREEN);
+  HAL_Delay(500);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint32_t last_check = HAL_GetTick();
-  uint32_t last_irq_count = 0;
-  uint8_t chunk_counter = 0;
-  uint32_t last_photo_time = HAL_GetTick();
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // ==========================================
-    // 0. 定时触发：每 5 秒拍一张
-    // ==========================================
-    if (HAL_GetTick() - last_photo_time >= 5000)
-    {
-        last_photo_time = HAL_GetTick();
-        if (take_photo_state == 0) { 
-            take_photo_state = 1;  // 开始收集下一张照片！
-            chunk_counter = 0;
-        }
-    }
-    // ==========================================
-    // 1. 处理前 10 行
-    // ==========================================
-    if (flag_half_ready)
-    {
-        flag_half_ready = 0;
-        dma_irq_count++;
-        
-        uint16_t current_row;
-        __disable_irq();
-        current_row = g_row;
-        g_row += 10;
-        if (g_row >= 240) g_row = 0;
-        __enable_irq();
-        
-        // 照常刷新屏幕（屏幕依然保持 320x240 全屏流畅）
-        ST7789_SetWindow(0, current_row, 319, current_row + 9);
-        TFT_DC_HIGH();
-        TFT_CS_LOW();
-        HAL_SPI_Transmit(&hspi1, g_line_buf, 320 * 10 * 2, HAL_MAX_DELAY);
-        TFT_CS_HIGH();
-        
-        // 👇 核心魔法：如果正在拍照，软件隔行抽样压缩 (12.8KB -> 1.6KB)
-        if (take_photo_state == 1) 
-        {
-            uint16_t *p_src = (uint16_t *)g_line_buf;
-            uint16_t *p_dst = (uint16_t *)(photo_buf + chunk_counter * 1600); // 字节偏移
-            int dst_idx = 0;
-            
-            // 每隔 1 行，每隔 1 列提取像素
-            for(int row = 0; row < 10; row += 2) { 
-                for(int col = 0; col < 320; col += 2) { 
-                    p_dst[dst_idx++] = p_src[row * 320 + col];
-                }
-            }
-            chunk_counter++;
-            if(chunk_counter >= 24) take_photo_state = 2; // 收集满 24 块，可以发送了
-        }
-    }
     
     // ==========================================
-    // 2. 处理后 10 行
+    // 1. 硬件级防卡死：每次抓拍前强制停止上一次的状态
     // ==========================================
-    if (flag_full_ready)
-    {
-        flag_full_ready = 0;
-        dma_irq_count++;
-        
-        uint16_t current_row;
-        __disable_irq();
-        current_row = g_row;
-        g_row += 10;
-        if (g_row >= 240) g_row = 0;
-        __enable_irq();
-        
-        ST7789_SetWindow(0, current_row, 319, current_row + 9);
-        TFT_DC_HIGH();
-        TFT_CS_LOW();
-        HAL_SPI_Transmit(&hspi1, g_line_buf + 320 * 10 * 2, 320 * 10 * 2, HAL_MAX_DELAY);
-        TFT_CS_HIGH();
-        
-        if (take_photo_state == 1) 
-        {
-            uint16_t *p_src = (uint16_t *)(g_line_buf + 6400); // 指向后半段数据
-            uint16_t *p_dst = (uint16_t *)(photo_buf + chunk_counter * 1600); 
-            int dst_idx = 0;
-            
-            for(int row = 0; row < 10; row += 2) { 
-                for(int col = 0; col < 320; col += 2) { 
-                    p_dst[dst_idx++] = p_src[row * 320 + col];
-                }
-            }
-            chunk_counter++;
-            if(chunk_counter >= 24) take_photo_state = 2;
-        }
-    }
+    HAL_DCMI_Stop(&hdcmi);
     
     // ==========================================
-    // 3. 独立发送逻辑（绝对无撕裂）
+    // 2. 启动 DMA 抓拍 (截取前 160 行，实现 320x160 宽屏)
+    // 25600 Words = 102400 字节 = 100KB
     // ==========================================
-    if (take_photo_state == 2) 
+    if (HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_SNAPSHOT, (uint32_t)full_frame_buf, 25600) == HAL_OK)
     {
-        HAL_DCMI_Stop(&hdcmi);
+        uint32_t wait_time = HAL_GetTick();
         
-        // 👇 【侦测魔法 1】：开始发送前，让屏幕变成红色！
-        ST7789_Fill(COLOR_RED); 
-        
-        HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
-        
-        for(int i = 0; i < 24; i++) {
-            HAL_UART_Transmit(&huart3, photo_buf + (i * 1600), 1600, 1000);
-            HAL_Delay(20); 
+        // 带超时保护的死等：最多等 200 毫秒
+        while(HAL_DCMI_GetState(&hdcmi) != HAL_DCMI_STATE_READY) 
+        {
+            if (HAL_GetTick() - wait_time > 200) {
+                break; // 超时强行跳出，防止单片机彻底卡死变砖！
+            }
         }
         
-        // 👇 【侦测魔法 2】：发送顺利结束，让屏幕恢复黑色（或者原来正常的画面）！
-        ST7789_Fill(COLOR_BLACK); 
+        // 采集完毕，宽屏电影级显示！(上下留黑边，中间高清)
+        TFT_ShowWidescreen(full_frame_buf);
+    }
+
+    // ==========================================
+    // 3. 事件触发发送逻辑 (行车记录仪核心)
+    // ==========================================
+    if (take_photo_state == 1) 
+    {
+        take_photo_state = 2; // 标记正在发送，防止主循环重复触发
         
+        if (is_online == 1) 
+        {
+            // 发送暗号帧头
+            HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
+            
+            // 将 100KB 的超清图片切片发送 (102400 / 512 = 200 次)
+            for(int i = 0; i < 200; i++) 
+            {
+                // 注意这里的强转：必须把 buf 转成 uint8_t* 再加偏移量，保证严格按字节前进！
+                HAL_UART_Transmit(&huart3, ((uint8_t*)full_frame_buf) + (i * 512), 512, 1000);
+                
+                // 狠狠踩一脚刹车：休息 50ms，保证 ESP8266 绝对不会“消化不良”
+                HAL_Delay(50); 
+            }
+        }
+        
+        // 发完收工，状态归零，单片机马上恢复流畅的视频监控
         take_photo_state = 0; 
-        chunk_counter = 0;
         
-        HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_CONTINUOUS, (uint32_t)g_line_buf, (320 * 20 * 2) / 4);
-    }
-    
-    // ==========================================
-    // 每秒检测心跳 (保留你的旧代码)
-    // ==========================================
-    if (HAL_GetTick() - last_check >= 1000)
-    {
-        last_check = HAL_GetTick();
-        if (dma_irq_count == last_irq_count)
-        {
-            ST7789_Fill(COLOR_BLUE);
-            HAL_Delay(100);
-            ST7789_Fill(COLOR_BLACK);
-        }
-        last_irq_count = dma_irq_count;
-    }
+        // 如果你还在用定时器循环拍照测试，取消下面这行的注释
+        // last_photo_time = HAL_GetTick(); 
+    } 
+
   }
   /* USER CODE END 3 */
 }

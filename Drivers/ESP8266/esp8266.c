@@ -53,44 +53,74 @@ uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
  * @param  port      电脑端 TCP 服务器端口
  * @retval ESP8266_OK (0): 成功 / ESP8266_ERROR (1): 失败
  */
+/**
+ * @brief  初始化 ESP8266 (带无限重试与颜色诊断的高级版)
+ */
+/**
+ * @brief  初始化 ESP8266 (智能探针版，彻底终结 ALREADY CONNECTED 卡死 Bug)
+ */
 uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uint16_t port)
 {
     char cmd_buf[128]; 
+    uint8_t tcp_connected = 0;
 
-    // 1. 模块复位 (盲等 3 秒)
+    // 1. 复位与基础设置
     ST7789_Fill(COLOR_BLUE); 
-    ESP8266_SendCmd("AT+RST\r\n", NULL, 0);
-    HAL_Delay(3000);
-
-    // 2. 设置混合模式 (盲等 1 秒)
-    ST7789_Fill(COLOR_YELLOW); 
-    ESP8266_SendCmd("AT+CWMODE=3\r\n", NULL, 0);
+    ESP8266_SendCmd("AT+RST\r\n", "ready", 3000);
     HAL_Delay(1000);
+    ESP8266_SendCmd("AT+CWMODE=3\r\n", "OK", 2000);
 
-    // 3. 连接 Wi-Fi (盲等 8 秒，给足路由器分配 IP 的时间)
-    ST7789_Fill(COLOR_BLUE); 
+    // 2. 连接 Wi-Fi (黄色：正在连接 Wi-Fi)
+    ST7789_Fill(COLOR_YELLOW); 
     sprintf(cmd_buf, "AT+CWJAP=\"%s\",\"%s\"\r\n", ssid, pwd);
-    ESP8266_SendCmd(cmd_buf, NULL, 0);
-    HAL_Delay(12000); 
-
-    // 4. 清理旧连接
-    ESP8266_SendCmd("AT+CIPMUX=0\r\n", NULL, 0);
-    HAL_Delay(500);
-    ESP8266_SendCmd("AT+CIPCLOSE\r\n", NULL, 0);
-    HAL_Delay(500);
-
-    // 5. 连接电脑 TCP 服务器 (盲等 3 秒)
-    ST7789_Fill(COLOR_YELLOW); 
-    sprintf(cmd_buf, "AT+CIPSTART=\"TCP\",\"%s\",%d\r\n", server_ip, port);
-    ESP8266_SendCmd(cmd_buf, NULL, 0); 
-    HAL_Delay(3000); 
-
-    // 6. 开启透传
-    ESP8266_SendCmd("AT+CIPMODE=1\r\n", NULL, 0);
+    
+    // Wi-Fi 连不上就重试
+    while(ESP8266_SendCmd(cmd_buf, "OK", 15000) != ESP8266_OK) 
+    {
+        ST7789_Fill(COLOR_RED);  
+        HAL_Delay(500);
+        ST7789_Fill(COLOR_YELLOW);
+    }
     HAL_Delay(1000);
-    ESP8266_SendCmd("AT+CIPSEND\r\n", NULL, 0);
-    HAL_Delay(1000); 
 
-    // 强行返回成功，绝对不让它亮红屏！
+    // 3. 清理旧连接
+    ESP8266_SendCmd("AT+CIPMUX=0\r\n", "OK", 1500);
+
+    // 4. 连接电脑 TCP (白色：正在连接电脑)
+    ST7789_Fill(COLOR_WHITE); 
+    sprintf(cmd_buf, "AT+CIPSTART=\"TCP\",\"%s\",%d\r\n", server_ip, port);
+    
+    while(ESP8266_SendCmd(cmd_buf, "OK", 8000) != ESP8266_OK) 
+    {
+        // 👇 【核心智能探针魔法】
+        // 如果找不到 OK，也许 ESP8266 已经连上了并回复了 ALREADY CONNECTED
+        // 我们直接发个指令试探一下：能不能开透传？
+        if(ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 1000) == ESP8266_OK) {
+            tcp_connected = 1; // 试探成功！早就连上电脑了！
+            break;             // 强行跳出报错死循环！
+        }
+        
+        ST7789_Fill(COLOR_RED);  
+        HAL_Delay(500);
+        ST7789_Fill(COLOR_WHITE);
+    }
+
+    // 5. 开启透传 (蓝色)
+    ST7789_Fill(COLOR_BLUE);
+    if(tcp_connected == 0) {
+        // 如果刚才探针没开过透传，这里补开一次
+        while(ESP8266_SendCmd("AT+CIPMODE=1\r\n", "OK", 2000) != ESP8266_OK) {
+            HAL_Delay(500);
+        }
+    }
+
+    // 6. 敲开数据大门 (绿色：万事大吉，进入发图模式)
+    while(ESP8266_SendCmd("AT+CIPSEND\r\n", ">", 2000) != ESP8266_OK) {
+        HAL_Delay(500);
+    }
+
+    ST7789_Fill(COLOR_GREEN);
+    HAL_Delay(1000);
+
     return ESP8266_OK; 
 }
