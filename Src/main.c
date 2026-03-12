@@ -134,11 +134,12 @@ int main(void)
   }
   HAL_Delay(500);
   /* 初始化ESP8266 */
-//   if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
-//   {
-//       ST7789_Fill(COLOR_RED); 
-//       while(1); // 如果返回 1 (失败)，则亮红屏死机
-//   }
+  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+  {
+      ST7789_Fill(COLOR_RED); 
+      while(1); // 如果返回 1 (失败)，则亮红屏死机
+  }
+  is_online = 1; // 成功联网，切换到在线模式
   ST7789_Fill(COLOR_GREEN);
   HAL_Delay(500);
   /* USER CODE END 2 */
@@ -177,12 +178,20 @@ int main(void)
     }
 
     // ==========================================
+    // 🌟 测试专用：每隔 5 秒钟，自动扣动一次快门！
+    // ==========================================
+    static uint32_t last_snap_time = 0;
+    if (take_photo_state == 0 && (HAL_GetTick() - last_snap_time > 5000)) 
+    {
+        take_photo_state = 1; // 触发抓拍！
+        last_snap_time = HAL_GetTick(); // 重新计时
+    }
+    // ==========================================
     // 3. 事件触发发送逻辑 (行车记录仪核心)
     // ==========================================
     if (take_photo_state == 1) 
     {
         take_photo_state = 2; // 标记正在发送，防止主循环重复触发
-        
         if (is_online == 1) 
         {
             // 发送暗号帧头
