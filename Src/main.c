@@ -31,6 +31,8 @@
 #include "st7789.h"
 #include "string.h"
 #include "esp8266.h"
+#include "sensor.h"
+#include "ui.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -54,7 +56,7 @@
 /* 行缓冲区 - 20行 x 320像素 x 2字节 */
 __attribute__((aligned(4)))
 uint8_t g_line_buf[320 * 20 * 2];
-uint8_t photo_buf[38400];     // 开辟 38.4KB 内存，存放提取后的完美照片
+uint8_t photo_buf[38400];     // 开辟 38.4KB 内存，存放提取后的照片
 volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
 volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
 volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
@@ -136,13 +138,13 @@ int main(void)
   }
   HAL_Delay(500);
   /* 初始化ESP8266 */
-  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
-  {
-      ST7789_Fill(COLOR_RED); 
-      while(1); // 如果返回 1 (失败)，则亮红屏死机
-  }
-  is_online = 1; // 成功联网，切换到在线模式
-  ST7789_Fill(COLOR_GREEN);
+  // if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+  // {
+  //     ST7789_Fill(COLOR_RED); 
+  //     while(1); // 如果返回 1 (失败)，则亮红屏死机
+  // }
+  // is_online = 1; // 成功联网，切换到在线模式
+  ST7789_Fill(COLOR_BLACK);
   HAL_Delay(500);
   /* USER CODE END 2 */
 
@@ -153,20 +155,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    
-    // ==========================================
-    // 1. 硬件级防卡死：每次抓拍前强制停止上一次的状态
-    // ==========================================
+    // 1. 防卡死：每次抓拍前强制停止上一次的状态
     HAL_DCMI_Stop(&hdcmi);
-    
-    // ==========================================
     // 2. 启动 DMA 抓拍 (截取前 160 行，实现 320x160 宽屏)
     // 25600 Words = 102400 字节 = 100KB
-    // ==========================================
     if (HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_SNAPSHOT, (uint32_t)full_frame_buf, 25600) == HAL_OK)
     {
         uint32_t wait_time = HAL_GetTick();
-        
         // 带超时保护的死等：最多等 200 毫秒
         while(HAL_DCMI_GetState(&hdcmi) != HAL_DCMI_STATE_READY) 
         {
@@ -174,23 +169,29 @@ int main(void)
                 break; // 超时强行跳出，防止单片机彻底卡死变砖！
             }
         }
-        
-        // 采集完毕，宽屏电影级显示！(上下留黑边，中间高清)
         TFT_ShowWidescreen(full_frame_buf);
     }
-
-    // ==========================================
-    // 🌟 测试专用：每隔 5 秒钟，自动扣动一次快门！
-    // ==========================================
-    static uint32_t last_snap_time = 0;
-    if (take_photo_state == 0 && (HAL_GetTick() - last_snap_time > 5000)) 
+    static uint32_t last_ui_time = 0;
+    if (HAL_GetTick() - last_ui_time > 1000) 
     {
-        take_photo_state = 1; // 触发抓拍！
-        last_snap_time = HAL_GetTick(); // 重新计时
+        // 1. 读取光照百分比
+        uint8_t current_light = Sensor_GetLightPercent(); 
+        // 2. 更新顶部黑边的 HUD 状态栏
+        UI_Update_TopBar(current_light);                  
+        if (current_light > 70) 
+        {
+            // 环境太暗了！点亮 LED (假设你用的是 PB1)
+            // 注意：如果你的 LED 是接在 VCC 上的，这里可能要改成 RESET 才能亮
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); 
+        }
+        else 
+        {
+            // 光线充足，熄灭 LED 节能
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); 
+        }
+        last_ui_time = HAL_GetTick();
     }
-    // ==========================================
-    // 3. 事件触发发送逻辑 (行车记录仪核心)
-    // ==========================================
+    // 3. 事件触发发送逻辑
     if (take_photo_state == 1) 
     {
         take_photo_state = 2; // 标记正在发送，防止主循环重复触发
@@ -198,14 +199,10 @@ int main(void)
         {
             // 发送暗号帧头
             HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
-            
-            // 将 100KB 的超清图片切片发送 (102400 / 512 = 200 次)
+            // 将 100KB 的超清图片切片发送
             for(int i = 0; i < 200; i++) 
             {
-                // 注意这里的强转：必须把 buf 转成 uint8_t* 再加偏移量，保证严格按字节前进！
                 HAL_UART_Transmit(&huart3, ((uint8_t*)full_frame_buf) + (i * 512), 512, 1000);
-                
-                // 狠狠踩一脚刹车：休息 50ms，保证 ESP8266 绝对不会“消化不良”
                 HAL_Delay(50); 
             }
         }
