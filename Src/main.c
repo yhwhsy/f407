@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
 #include "dcmi.h"
 #include "dma.h"
 #include "spi.h"
@@ -120,6 +121,7 @@ int main(void)
   MX_DCMI_Init();
   MX_SPI1_Init();
   MX_USART3_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   /* 初始化TFT */
   ST7789_Init(&hspi1);
