@@ -163,12 +163,12 @@ int main(void)
       HAL_Delay(2000); // 延时一下让你看清报错
   }
   /* 初始化ESP8266 */
-  // if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
-  // {
-  //     ST7789_Fill(COLOR_RED); 
-  //     while(1); // 如果返回 1 (失败)，则亮红屏死机
-  // }
-  // is_online = 1; // 成功联网，切换到在线模式
+  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+  {
+      ST7789_Fill(COLOR_RED); 
+      while(1); // 如果返回 1 (失败)，则亮红屏死机
+  }
+  is_online = 1; // 成功联网，切换到在线模式
   ST7789_Fill(COLOR_BLACK);
   HAL_Delay(500);
   /* USER CODE END 2 */
