@@ -65,7 +65,8 @@ volatile uint8_t flag_half_ready = 0;  /* DMA半传输完成：前10行就绪 */
 volatile uint8_t flag_full_ready = 0;  /* DMA全传输完成：后10行就绪 */
 volatile uint32_t dma_irq_count = 0;   /* DMA中断计数器 */
 volatile uint16_t g_row = 0;           /* 当前屏幕写入行位置（全局变量，防撕裂保护用） */
-uint8_t rx_buffer[100];         // 串口接收缓冲区
+uint8_t rx_buffer[512];         // 增大缓冲区
+volatile uint16_t rx_len = 0;   // 记录当前接收总长度
 volatile uint8_t esp_ok_flag = 0; // 成功收到OK的标志位
 __attribute__((aligned(4))) 
 uint16_t full_frame_buf[320 * 160]; 
@@ -364,21 +365,20 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 {
     if (huart->Instance == USART3)
     {
-        // 给字符串末尾加上结束符，防止越界
-        if (Size < sizeof(rx_buffer)) {
-            rx_buffer[Size] = '\0'; 
+        rx_len += Size; // 累加接收长度
+        // 安全保护：防止长句越界溢出
+        if (rx_len >= 512) {
+            rx_len = 0;
+            memset(rx_buffer, 0, 512);
         } else {
-            rx_buffer[sizeof(rx_buffer)-1] = '\0';
+            rx_buffer[rx_len] = '\0'; // 字符串封口
         }
-        
-        // 检查 ESP8266 的回复中是否包含 "OK"
+        // 捕捉关键的 OK 标志
         if (strstr((char*)rx_buffer, "OK") != NULL)
         {
-            esp_ok_flag = 1; // 成功标志置1
+            esp_ok_flag = 1; 
         }
-        
-        // 重新开启中断接收，等待下一次数据
-        HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
+        HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer + rx_len, 512 - rx_len);
     }
 }
 
