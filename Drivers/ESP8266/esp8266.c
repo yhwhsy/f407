@@ -2,7 +2,7 @@
 #include "st7789.h"  
 #include <string.h>
 #include <stdio.h>
-
+#include "ui.h"
 uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
 {
     HAL_UART_AbortReceive_IT(&huart3); // 先强行停止之前的接收
@@ -50,7 +50,17 @@ uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uin
         while(ESP8266_SendCmd(cmd_buf, "OK", 15000) != ESP8266_OK) 
         {
             ST7789_Fill(COLOR_RED);  
-            HAL_Delay(500);
+            // 1. 把 ESP8266 返回的换行符替换为空格，防止字体库无法显示
+            for(int i = 0; i < 512; i++) {
+                if(rx_buffer[i] == '\r' || rx_buffer[i] == '\n') rx_buffer[i] = ' ';
+            }
+            
+            // 2. 把报错原话直接打在红屏上！
+            UI_DrawString(5, 40, "ESP LOG:", COLOR_WHITE, COLOR_RED);
+            UI_DrawString(5, 60, (char*)rx_buffer, COLOR_WHITE, COLOR_RED);
+            // ================================================
+
+            HAL_Delay(6000); // 停顿 6 秒，给你充足的时间看清屏幕写了什么
             ST7789_Fill(COLOR_YELLOW);
         }
     }
