@@ -205,13 +205,23 @@ int main(void)
             } else {
                 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); 
             }
-            
             current_speed = speed_pulse_count; 
             speed_pulse_count = 0; 
-            
             char ui_buf[64];
             sprintf(ui_buf, "Light: %3d %%  Speed: %3d", current_light, current_speed);
             UI_DrawString(5, 12, ui_buf, COLOR_WHITE, COLOR_BLACK); 
+            //如果已连上 WiFi，每秒钟向 Python 后台汇报一次实时数据
+            if (is_online == 1) 
+            {
+                float pitch = 0, roll = 0;
+                MPU6050_GetAttitude(&pitch, &roll); // 读取姿态
+                
+                char telemetry_buf[128];
+                // 组装格式：[DATA]Light:85,Speed:10,Pitch:5.2,Roll:-1.2\r\n
+                sprintf(telemetry_buf, "[DATA]Light:%d,Speed:%d,Pitch:%.1f,Roll:%.1f\r\n", 
+                        current_light, current_speed, pitch, roll);
+                HAL_UART_Transmit(&huart3, (uint8_t*)telemetry_buf, strlen(telemetry_buf), 100);
+            }
         }
         else 
         {

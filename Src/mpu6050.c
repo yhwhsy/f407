@@ -1,5 +1,5 @@
 #include "mpu6050.h"
-
+#include <math.h> // [新增] 引入数学库用于计算角度
 #define MPU6050_ADDR 0xD0 // 默认 I2C 地址 (AD0接GND)
 
 // 初始化 MPU6050
@@ -52,4 +52,19 @@ uint8_t MPU6050_CheckCollision(void)
     }
     
     return 0; // 平安无事
+}
+
+// 计算头盔姿态角度
+void MPU6050_GetAttitude(float *pitch, float *roll)
+{
+    uint8_t buf[6];
+    HAL_I2C_Mem_Read(&hi2c2, 0xD0, 0x3B, 1, buf, 6, 1000);
+    
+    int16_t accel_x = (buf[0] << 8) | buf[1];
+    int16_t accel_y = (buf[2] << 8) | buf[3];
+    int16_t accel_z = (buf[4] << 8) | buf[5];
+
+    // 利用反三角函数计算姿态角 (57.29578 = 180 / PI)
+    *pitch = -atan2(accel_x, sqrt(accel_y * accel_y + accel_z * accel_z)) * 57.29578f;
+    *roll  = atan2(accel_y, accel_z) * 57.29578f;
 }
