@@ -53,23 +53,10 @@ static void UI_DrawChar(uint16_t x, uint16_t y, char c, uint16_t color, uint16_t
 }
 
 // 显示字符串
-static void UI_DrawString(uint16_t x, uint16_t y, const char *str, uint16_t color, uint16_t bg_color) {
+void UI_DrawString(uint16_t x, uint16_t y, const char *str, uint16_t color, uint16_t bg_color) {
     while(*str != '\0') {
         UI_DrawChar(x, y, *str, color, bg_color);
         x += 8; // 每个字符宽度 8 像素
         str++;
     }
-}
-
-/**
- * @brief 更新顶部状态栏 (显示在 Y=12 的位置，完美融入 40 像素的顶部黑边)
- */
-void UI_Update_TopBar(uint8_t light_percent)
-{
-    char ui_buf[32];
-    // %3d 保证始终占 3 个字符宽度，防止如从 100 变成 99 时末尾留有残影
-    sprintf(ui_buf, "Light: %3d %%", light_percent);
-    
-    // 在 X=10, Y=12 的位置显示，前景色白色，背景色黑色
-    UI_DrawString(10, 12, ui_buf, COLOR_WHITE, COLOR_BLACK);
 }

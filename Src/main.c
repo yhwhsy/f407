@@ -35,6 +35,7 @@
 #include "sensor.h"
 #include "ui.h"
 #include "mpu6050.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -178,11 +179,8 @@ int main(void)
     }
     static uint32_t last_ui_time = 0;
     if (HAL_GetTick() - last_ui_time > 1000) 
-    {
-        // 1. 读取光照百分比
-        uint8_t current_light = Sensor_GetLightPercent(); 
-        // 2. 更新顶部黑边的 HUD 状态栏
-        UI_Update_TopBar(current_light);                  
+    {                 
+        uint8_t current_light = Sensor_GetLightPercent();
         if (current_light > 70) 
         {
             // 环境太暗了！点亮 LED (假设你用的是 PB1)
@@ -217,14 +215,9 @@ int main(void)
                 HAL_Delay(50); 
             }
         }
-        
         // 发完收工，状态归零，单片机马上恢复流畅的视频监控
         take_photo_state = 0; 
-        
-        // 如果你还在用定时器循环拍照测试，取消下面这行的注释
-        // last_photo_time = HAL_GetTick(); 
     } 
-
   }
   /* USER CODE END 3 */
 }
@@ -324,8 +317,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-    // 假设你把测速模块接在了 PB0 上，对应 GPIO_PIN_0
-    if (GPIO_Pin == GPIO_PIN_0) 
+    if (GPIO_Pin == GPIO_PIN_5) 
     {
         speed_pulse_count++; // 脉冲计数器 +1
     }

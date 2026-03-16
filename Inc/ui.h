@@ -3,7 +3,7 @@
 
 #include "stm32f4xx_hal.h"
 
-/* 刷新顶部状态栏 */
-void UI_Update_TopBar(uint8_t light_percent);
+/* 声明直接画字符串的函数 */
+void UI_DrawString(uint16_t x, uint16_t y, const char *str, uint16_t color, uint16_t bg_color);
 
 #endif
