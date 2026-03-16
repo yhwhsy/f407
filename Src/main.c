@@ -34,6 +34,7 @@
 #include "esp8266.h"
 #include "sensor.h"
 #include "ui.h"
+#include "mpu6050.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,6 +69,8 @@ __attribute__((aligned(4)))
 uint16_t full_frame_buf[320 * 160]; 
 uint8_t is_online = 0;        // 0: 脱机模式(仅屏幕当记录仪), 1: 联网模式(发图片给电脑)
 uint8_t take_photo_state = 0; // 0: 平时刷屏, 1: 准备抓拍, 2: 正在发送
+volatile uint32_t speed_pulse_count = 0; // 记录脉冲数的全局变量
+uint16_t current_speed = 0;              // 当前计算出的速度 (转/秒 或 km/h)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -185,12 +188,16 @@ int main(void)
             // 环境太暗了！点亮 LED (假设你用的是 PB1)
             // 注意：如果你的 LED 是接在 VCC 上的，这里可能要改成 RESET 才能亮
             HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET); 
-        }
-        else 
-        {
+        } else {
             // 光线充足，熄灭 LED 节能
             HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET); 
         }
+        // 2. 测速传感器计算
+        current_speed = speed_pulse_count; 
+        speed_pulse_count = 0; // 读完清零，为下一个1秒重新计数
+        char ui_buf[32];
+        sprintf(ui_buf, "L: %3d %%  Spd: %3d", current_light, current_speed);
+        UI_DrawString(5, 12, ui_buf, COLOR_WHITE, COLOR_BLACK); // 记得把之前的 UI_Update_TopBar 替换成直接画字符串
         last_ui_time = HAL_GetTick();
     }
     // 3. 事件触发发送逻辑
@@ -199,8 +206,10 @@ int main(void)
         take_photo_state = 2; // 标记正在发送，防止主循环重复触发
         if (is_online == 1) 
         {
-            // 发送暗号帧头
-            HAL_UART_Transmit(&huart3, (uint8_t*)"[FRAME_START]", 13, 100);
+            uint8_t light_val = Sensor_GetLightPercent();
+            char status_buf[64];
+            sprintf(status_buf, "[DATA]Light:%d%%,Speed:%d\r\n[FRAME_START]", light_val, current_speed);
+            HAL_UART_Transmit(&huart3, (uint8_t*)status_buf, strlen(status_buf), 100);
             // 将 100KB 的超清图片切片发送
             for(int i = 0; i < 200; i++) 
             {
@@ -310,6 +319,15 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
         
         // 重新开启中断接收，等待下一次数据
         HAL_UARTEx_ReceiveToIdle_IT(&huart3, rx_buffer, sizeof(rx_buffer));
+    }
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    // 假设你把测速模块接在了 PB0 上，对应 GPIO_PIN_0
+    if (GPIO_Pin == GPIO_PIN_0) 
+    {
+        speed_pulse_count++; // 脉冲计数器 +1
     }
 }
 /* USER CODE END 4 */
