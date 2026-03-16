@@ -206,7 +206,7 @@ int main(void)
         {
             uint8_t light_val = Sensor_GetLightPercent();
             char status_buf[64];
-            sprintf(status_buf, "[DATA]Light:%d%%,Speed:%d\r\n[FRAME_START]", light_val, current_speed);
+            sprintf(status_buf, "[DATA]Light:%3d%%,Speed:%3d\r\n[FRAME_START]", light_val, current_speed);
             HAL_UART_Transmit(&huart3, (uint8_t*)status_buf, strlen(status_buf), 100);
             // 将 100KB 的超清图片切片发送
             for(int i = 0; i < 200; i++) 
