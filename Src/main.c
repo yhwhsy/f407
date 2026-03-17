@@ -90,15 +90,11 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN 0 */
 void TFT_ShowWidescreen(uint16_t* buf) 
 {
-    // 屏幕高度240，图像高度160。上下各留白 40 像素，居中显示！
     ST7789_SetWindow(0, 40, 319, 199);
     TFT_DC_HIGH();
     TFT_CS_LOW();
-    
-    // 因为 HAL_SPI_Transmit 最大只能发 65535 字节，我们把 102400 字节分两次轰进去！
     HAL_SPI_Transmit(&hspi1, (uint8_t*)buf, 51200, HAL_MAX_DELAY);
     HAL_SPI_Transmit(&hspi1, ((uint8_t*)buf) + 51200, 51200, HAL_MAX_DELAY);
-    
     TFT_CS_HIGH();
 }
 /* USER CODE END 0 */
@@ -164,7 +160,7 @@ int main(void)
       HAL_Delay(2000); // 延时一下让你看清报错
   }
   /* 初始化ESP8266 */
-  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.120.77", 8080) != 0)
+  if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.86.77", 8080) != 0)
   {
       ST7789_Fill(COLOR_RED); 
       while(1); // 如果返回 1 (失败)，则亮红屏死机
@@ -216,11 +212,11 @@ int main(void)
             {
                 float pitch = 0, roll = 0;
                 MPU6050_GetAttitude(&pitch, &roll); // 读取姿态
-                
+                int safe_pitch = (int)pitch;
+                int safe_roll  = (int)roll;
                 char telemetry_buf[128];
                 // 组装格式：[DATA]Light:85,Speed:10,Pitch:5.2,Roll:-1.2\r\n
-                sprintf(telemetry_buf, "[DATA]Light:%d,Speed:%d,Pitch:%.1f,Roll:%.1f\r\n", 
-                        current_light, current_speed, pitch, roll);
+                sprintf(telemetry_buf, "[DATA]Light:%d,Speed:%d,Pitch:%.d,Roll:%.d\r\n", current_light, current_speed, safe_pitch, safe_roll);
                 HAL_UART_Transmit(&huart3, (uint8_t*)telemetry_buf, strlen(telemetry_buf), 100);
             }
         }

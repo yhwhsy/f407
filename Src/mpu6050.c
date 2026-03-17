@@ -30,7 +30,7 @@ uint8_t MPU6050_CheckCollision(void)
     
     // 一次性连续读取 X, Y, Z 的加速度高低字节 (寄存器 0x3B 开始)
     // 👇 这里也是 &hi2c2
-    HAL_I2C_Mem_Read(&hi2c2, MPU6050_ADDR, 0x3B, 1, buf, 6, 1000);
+    HAL_I2C_Mem_Read(&hi2c2, MPU6050_ADDR, 0x3B, 1, buf, 6, 10);
     
     accel_x = (buf[0] << 8) | buf[1];
     accel_y = (buf[2] << 8) | buf[3];
@@ -57,14 +57,18 @@ uint8_t MPU6050_CheckCollision(void)
 // 计算头盔姿态角度
 void MPU6050_GetAttitude(float *pitch, float *roll)
 {
-    uint8_t buf[6];
-    HAL_I2C_Mem_Read(&hi2c2, 0xD0, 0x3B, 1, buf, 6, 1000);
-    
-    int16_t accel_x = (buf[0] << 8) | buf[1];
-    int16_t accel_y = (buf[2] << 8) | buf[3];
-    int16_t accel_z = (buf[4] << 8) | buf[5];
-
-    // 利用反三角函数计算姿态角 (57.29578 = 180 / PI)
-    *pitch = -atan2(accel_x, sqrt(accel_y * accel_y + accel_z * accel_z)) * 57.29578f;
-    *roll  = atan2(accel_y, accel_z) * 57.29578f;
+    uint8_t buf[6] = {0}; // 初始化清零，防止读不到时产生随机乱码
+    if (HAL_I2C_Mem_Read(&hi2c2, 0xD0, 0x3B, 1, buf, 6, 10) == HAL_OK)
+    {
+        int16_t accel_x = (buf[0] << 8) | buf[1];
+        int16_t accel_y = (buf[2] << 8) | buf[3];
+        int16_t accel_z = (buf[4] << 8) | buf[5];
+        *pitch = -atan2(accel_x, sqrt(accel_y * accel_y + accel_z * accel_z)) * 57.29578f;
+        *roll  = atan2(accel_y, accel_z) * 57.29578f;
+    }
+    else 
+    {
+        *pitch = 0; // 读不到就默认归零
+        *roll = 0;
+    }
 }

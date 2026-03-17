@@ -32,7 +32,8 @@ uint8_t ESP8266_SendCmd(char *cmd, char *ack, uint32_t timeout)
 uint8_t ESP8266_ConnectTo_TCP_Server(char* ssid, char* pwd, char* server_ip, uint16_t port)
 {
     char cmd_buf[128]; 
-
+    HAL_UART_Transmit(&huart3, (uint8_t *)"+++", 3, 1000);
+    HAL_Delay(1000); // 发完 +++ 之后必须强制等待至少 1 秒，模块才会退回到指令模式
     // 1. 复位与基础设置
     ST7789_Fill(COLOR_BLUE); 
     ESP8266_SendCmd("AT+RST\r\n", "ready", 3000);
