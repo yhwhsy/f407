@@ -86,7 +86,6 @@ void W25Q64_Read(uint8_t* pBuffer, uint32_t ReadAddr, uint16_t NumByteToRead) {
     W25Q_CS_HIGH();
 }
 
-// --- 专为保存 100KB 图像设计的顶层函数 ---
 // photo_index: 照片索引(0~70), photo_data: 图像数组(102400字节)
 void W25Q64_SavePhoto(uint32_t photo_index, uint8_t *photo_data) {
     // 100KB = 102400 字节，正好是 25 个 Sector (4096 * 25)

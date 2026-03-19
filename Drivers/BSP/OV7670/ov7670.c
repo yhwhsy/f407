@@ -14,7 +14,7 @@
 #define SCCB_SDA_PIN    GPIO_PIN_9
 #define SCCB_GPIO_PORT  GPIOB
 
-/* 延时函数（微秒级） */
+/* 延时函数微秒 */
 static void SCCB_Delay(void)
 {
     for(volatile int i = 0; i < 20; i++);  /* 约5-10us @168MHz */
@@ -227,7 +227,7 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {0x3a,        0x04},
     {0x40,        0xd0},
     
-    /* 输出格式：RGB565，QVGA，且必须关闭彩条测试 (Bit 1 = 0) */
+    /* 输出格式：RGB565，QVGA*/
     {REG_COM7,    0x14}, // 原来的 COM7_FMT_QVGA | COM7_RGB
     {0x32,        0x80},
     {0x17,        0x16}, // HSTART
@@ -240,12 +240,12 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     
     /* 缩放控制 */
     {0x70,        0x3a}, // SCALING_XSC
-    {0x71,        0x35}, // SCALING_YSC - 确保关闭了测试图案 (Bit 7 = 0)
+    {0x71,        0x35}, // SCALING_YSC
     {0x72,        0x11}, // SCALING_DCWCTR
     {0x73,        0x00}, // SCALING_PCLK_DIV
     {0xa2,        0x02}, // SCALING_PCLK_DELAY
     
-    /* 时钟分频 (如果DMA溢出出现黑线，可将 0x81 改大如 0x82) */
+    /* 时钟分频*/
     {REG_CLKRC,   0x81}, // 0x11
     
     /* Gamma 曲线调校 */
@@ -344,12 +344,8 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {0x01,        0x40}, // BLUE
     {0x02,        0x40}, // RED
     {REG_COM8,    0xe7}, // 0x13
-    
-    /* 【极其关键】：STM32 DCMI 同步信号极性适配 */
-    /* 必须是 0x0A 以设置 VSYNC 和 HREF 为低电平有效，解决死机无反应问题 */
     {REG_COM10,   0x0A}, // 0x15
-
-    /* 颜色矩阵（RGB565 官方推荐值适配） */
+    /* 颜色矩阵 */
     {0x4f,        0x80}, // MTX1
     {0x50,        0x80}, // MTX2
     {0x51,        0x00}, // MTX3
@@ -357,7 +353,6 @@ static const RegVal_t ov7670_rgb565_qvga_regs[] = {
     {0x53,        0x5e}, // MTX5
     {0x54,        0x80}, // MTX6
     {0x58,        0x9e}, // MTXS
-    
     /* 镜头阴影校正 (Lens Shading Correction) 等 */
     {0x41,        0x08},
     {0x3f,        0x00}, // EDGE

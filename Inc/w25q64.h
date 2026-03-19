@@ -3,7 +3,7 @@
 
 #include "stm32f4xx_hal.h"
 
-extern SPI_HandleTypeDef hspi2; // 声明 SPI2 句柄
+extern SPI_HandleTypeDef hspi2;
 
 #define W25Q_CS_LOW()   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET)
 #define W25Q_CS_HIGH()  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_SET)

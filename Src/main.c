@@ -149,7 +149,6 @@ int main(void)
   /*初始化 MPU6050 */
   if (MPU6050_Init() != 0)
   {
-      // 如果 MPU6050 初始化失败，可以在屏幕上提示一下，或者不影响主流程继续运行
       UI_DrawString(5, 30, "MPU6050 ERROR!", COLOR_RED, COLOR_BLACK);
   }
   /* 初始化 W25Q64 */
@@ -157,7 +156,7 @@ int main(void)
   uint16_t flash_id = W25Q64_ReadID();
   if (flash_id != 0xEF16) { // 检查 ID 是否正确
       UI_DrawString(5, 45, "FLASH ERROR!", COLOR_RED, COLOR_BLACK);
-      HAL_Delay(2000); // 延时一下让你看清报错
+      HAL_Delay(2000);
   }
   /* 初始化ESP8266 */
   if (ESP8266_ConnectTo_TCP_Server("yhwhsy", "13616338678", "192.168.86.77", 8080) != 0)
@@ -177,7 +176,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // === 1. DMA 摄像头抓拍与屏幕显示 (保持不变) ===
+    // === 1. DMA 摄像头抓拍与屏幕显示===
     HAL_DCMI_Stop(&hdcmi);
     if (HAL_DCMI_Start_DMA(&hdcmi, DCMI_MODE_SNAPSHOT, (uint32_t)full_frame_buf, 25600) == HAL_OK)
     {
@@ -223,7 +222,6 @@ int main(void)
         else 
         {
             // --- 碰撞模式：显示红色警报 ---
-            // 注意这里后面加了空格，是为了用黑底完美覆盖掉原来长长的 "Light: xx %" 字符
             UI_DrawString(5, 12, "CRASH DETECTED!         ", COLOR_RED, COLOR_BLACK);
         }
         last_ui_time = HAL_GetTick();

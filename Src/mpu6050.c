@@ -1,6 +1,6 @@
 #include "mpu6050.h"
-#include <math.h> // [新增] 引入数学库用于计算角度
-#define MPU6050_ADDR 0xD0 // 默认 I2C 地址 (AD0接GND)
+#include <math.h> 
+#define MPU6050_ADDR 0xD0 
 
 // 初始化 MPU6050
 uint8_t MPU6050_Init(void)
@@ -15,7 +15,7 @@ uint8_t MPU6050_Init(void)
     data = 0x00;
     HAL_I2C_Mem_Write(&hi2c2, MPU6050_ADDR, 0x6B, 1, &data, 1, 1000);
 
-    // 3. 配置加速度计量程为 ±4g (足够检测电动车跌倒或撞击)
+    // 3. 配置加速度计量程为 ±4g (检测电动车跌倒或撞击)
     data = 0x08;
     HAL_I2C_Mem_Write(&hi2c2, MPU6050_ADDR, 0x1C, 1, &data, 1, 1000);
 
@@ -41,23 +41,22 @@ uint8_t MPU6050_CheckCollision(void)
     float ay = (float)accel_y / 8192.0f;
     float az = (float)accel_z / 8192.0f;
 
-    // 💡 碰撞判定算法：
+    // 碰撞判定算法：
     // 正常骑行时，三轴合力应该在 1.0g 左右（重力）。
-    // 如果任意一个轴的加速度绝对值超过了 2.0g，说明发生了剧烈的急刹车、撞击或重摔！
+    // 若任意一个轴的加速度绝对值超过了 2.0g，说明发生了碰撞
     if (ax > 2.0f || ax < -2.0f || 
         ay > 2.0f || ay < -2.0f || 
         az > 2.0f || az < -2.0f) 
     {
-        return 1; // 发生碰撞！
+        return 1; // 发生碰撞
     }
-    
     return 0; // 平安无事
 }
 
 // 计算头盔姿态角度
 void MPU6050_GetAttitude(float *pitch, float *roll)
 {
-    uint8_t buf[6] = {0}; // 初始化清零，防止读不到时产生随机乱码
+    uint8_t buf[6] = {0}; // 初始化清零
     if (HAL_I2C_Mem_Read(&hi2c2, 0xD0, 0x3B, 1, buf, 6, 10) == HAL_OK)
     {
         int16_t accel_x = (buf[0] << 8) | buf[1];

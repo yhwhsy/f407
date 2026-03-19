@@ -1,7 +1,6 @@
 #include "ui.h"
 #include "st7789.h"
 
-// 标准 ASCII 8x16 点阵字库 (包含了从空格一直到 ~ 的 95 个标准字符)
 static const uint8_t asc2_1608[95][16] = {
 {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},/*" ",0*/
 {0x00,0x00,0x00,0x08,0x08,0x08,0x08,0x08,0x08,0x08,0x00,0x00,0x18,0x18,0x00,0x00},/*"!",1*/
@@ -103,13 +102,12 @@ static const uint8_t asc2_1608[95][16] = {
 // 绘制单个字符
 void UI_DrawChar(uint16_t x, uint16_t y, char c, uint16_t color, uint16_t bg_color) 
 {
-    // 如果超出了我们字库的范围（比如不可见的控制字符），直接画个空格
+    // 如果超出了直接画个空格
     if (c < ' ' || c > '~') 
     {
         c = ' ';
     }
     
-    // 究极优化：直接用 ASCII 码减去空格的 ASCII 码，瞬间定位字模数组！
     uint8_t font_index = c - ' ';
     
     // 渲染这个字符的 16 行
@@ -136,7 +134,6 @@ void UI_DrawString(uint16_t x, uint16_t y, const char *str, uint16_t color, uint
     
     while (*str != '\0') 
     {
-        // 遇到换行符，自动跳到下一行开头！
         if (*str == '\r' || *str == '\n') 
         {
             if (*str == '\n') y += 16; // 高度下移 16 个像素

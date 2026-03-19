@@ -104,16 +104,7 @@ void ST7789_Init(SPI_HandleTypeDef *hspi)
 
     /* ---- 屏幕方向：横屏，显示OV7670 320x240 ---- */
     ST7789_WriteCmd(ST7789_MADCTL);
-    /* 
-     * MADCTL设置：
-     * - MX: 列地址顺序镜像（横屏需要）
-     * - MV: 行/列交换（横屏需要）
-     * - BGR: 使用BGR颜色顺序（与OV7670的RGB565输出匹配时需要考虑字节顺序）
-     * 
-     * OV7670输出RGB565格式: RRRRRGGG GGGBBBBB (大端序)
-     * ST7789期望: 对于RGB565模式，数据按接收顺序解析
-     * 实际测试发现OV7670数据在ST7789上显示时需要BGR模式
-     */
+
     ST7789_WriteData8(ST7789_MADCTL_MX | ST7789_MADCTL_MV); /* 横屏 + BGR模式 */
 
     /* ---- 帧频控制 ---- */
@@ -221,7 +212,7 @@ void ST7789_SetWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 }
 
 /**
- * @brief 全屏填充单色（优化版：使用行缓冲区，仅240次HAL调用）
+ * @brief 全屏填充单色
  */
 void ST7789_Fill(uint16_t color)
 {
@@ -237,7 +228,6 @@ void ST7789_Fill(uint16_t color)
     TFT_DC_HIGH();
     TFT_CS_LOW();
 
-    /* 240行，每行640字节，只需240次HAL调用 */
     for (int row = 0; row < ST7789_HEIGHT; row++) {
         HAL_SPI_Transmit(g_hspi, line_buf, 640, HAL_MAX_DELAY);
     }
@@ -294,7 +284,6 @@ void ST7789_DMA_TxCpltCallback(void)
 
 /**
  * @brief 写入帧缓冲（DMA方式，非阻塞）
- *        注意：调用前确保上次DMA传输已完成(g_spi_dma_done==1)
  */
 void ST7789_WriteFrameBufferDMA(uint8_t *buf, uint32_t len)
 {
@@ -310,7 +299,7 @@ void ST7789_WriteFrameBufferDMA(uint8_t *buf, uint32_t len)
     /* DMA最大65535字节，帧缓冲153600字节需分两次 */
     /* 第一包：65535字节 */
     /* 第二包：剩余字节 */
-    /* 此处简化：使用阻塞分包，保证稳定 */
+    /* 使用阻塞分包，保证稳定 */
     uint32_t remaining = len;
     uint8_t  *ptr      = buf;
 
